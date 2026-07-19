@@ -1,4 +1,5 @@
 import { useRoute } from "@/api/optimization";
+import { formatKm } from "@/lib/format";
 import type { JobResult } from "@/types";
 
 // Renders the optimized result summary + per-route stop list (docs/DESIGN.md §3.3).
@@ -58,9 +59,4 @@ function Metric({ label, value }: { label: string; value: string }) {
       <dd className="font-mono font-semibold">{value}</dd>
     </div>
   );
-}
-
-function formatKm(meters?: number): string {
-  if (meters == null) return "—";
-  return `${(meters / 1000).toFixed(1)} km`;
 }
