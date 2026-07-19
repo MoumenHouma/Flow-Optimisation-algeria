@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     # External services
     osrm_url: str = "http://localhost:5000"
     nominatim_url: str = "https://nominatim.openstreetmap.org"
+    # Nominatim usage policy: identify the client and bias to Algeria (PRD §4.1).
+    nominatim_user_agent: str = "RouteOpt/1.0 (+https://routeopt.dz)"
+    nominatim_country: str = "dz"
+    # Public Nominatim caps at ~1 req/s; a self-hosted instance can set 0.
+    nominatim_rate_limit_s: float = 1.0
+    geocoding_cache_ttl_s: int = 2_592_000  # 30 days (SCHEMA.md §7, geo:{hash})
 
     # Object storage
     s3_endpoint: str = "http://localhost:9000"

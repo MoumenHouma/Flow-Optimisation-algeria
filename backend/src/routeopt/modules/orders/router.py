@@ -37,3 +37,14 @@ async def list_routable(
 ) -> list[DeliveryOut]:
     deliveries = await OrdersService(session).list_routable(user.company_id)
     return [DeliveryOut.from_model(d) for d in deliveries]
+
+
+@router.post("/{delivery_id}/geocode", response_model=DeliveryOut)
+async def regeocode(
+    delivery_id: str,
+    session: SessionDep,
+    user: Annotated[CurrentUser, Depends(require_roles("admin", "manager"))],
+) -> DeliveryOut:
+    """Retry geocoding a delivery whose address was corrected (F2, DESIGN §3.5)."""
+    delivery = await OrdersService(session).regeocode(user.company_id, delivery_id)
+    return DeliveryOut.from_model(delivery)
