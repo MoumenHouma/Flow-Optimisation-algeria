@@ -29,6 +29,26 @@ export interface Delivery {
   status: DeliveryStatus;
 }
 
+// Client-side draft built from a CSV row, sent to POST /orders.
+export interface DeliveryDraft {
+  address: string;
+  order_id?: string;
+  lat?: number;
+  lon?: number;
+  customer_phone?: string;
+  time_window_start?: string;
+  time_window_end?: string;
+  weight?: number;
+  volume?: number;
+  priority?: 1 | 2 | 3;
+}
+
+export interface BulkCreateResponse {
+  created: number;
+  geocoding_pending: number;
+  deliveries: Delivery[];
+}
+
 export interface Vehicle {
   id: string;
   name: string;
