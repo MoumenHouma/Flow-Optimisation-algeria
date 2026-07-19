@@ -7,6 +7,7 @@ Latin fonts (Arabic shaping in PDF is a documented follow-up).
 
 import io
 import uuid
+from typing import Any
 
 from openpyxl import Workbook
 from reportlab.lib import colors
@@ -87,7 +88,7 @@ def build_pdf(route: Route, deliveries: dict[uuid.UUID, Delivery]) -> bytes:
         Spacer(1, 0.5 * cm),
     ]
 
-    data: list[list] = [_HEADERS]
+    data: list[list[Any]] = [_HEADERS]
     for row in _rows(route, deliveries):
         data.append([row[0], Paragraph(row[1], cell), row[2], row[3], row[4], row[5]])
 

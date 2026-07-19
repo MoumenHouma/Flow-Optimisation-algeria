@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -25,7 +26,7 @@ class OptimizationJob(UUIDPrimaryKey, Base):
     solver_strategy: Mapped[str | None] = mapped_column(String(30))
     delivery_count: Mapped[int | None] = mapped_column(Integer)
     vehicle_count: Mapped[int | None] = mapped_column(Integer)
-    result: Mapped[dict | None] = mapped_column(JSONB)
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     error_message: Mapped[str | None] = mapped_column(String)
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -100,14 +100,23 @@ class AuthService:
 
     # ── helpers ──────────────────────────────────────────────────────────
     async def _get_user_by_email(self, email: str) -> User | None:
-        return await self.session.scalar(
+        user: User | None = await self.session.scalar(
             select(User).where(User.email == email, User.deleted_at.is_(None))
         )
+        return user
 
     async def _issue_and_store(self, user: User) -> TokenResponse:
         if user.role not in _VALID_ROLES:
             raise AuthError("Unknown role")
-        claims = {"sub": str(user.id), "company_id": str(user.company_id), "role": user.role}
+        # Include the plan so rate limits are plan-aware without a per-request DB hit.
+        company = await self.session.get(Company, user.company_id)
+        plan = company.plan if company else "free"
+        claims = {
+            "sub": str(user.id),
+            "company_id": str(user.company_id),
+            "role": user.role,
+            "plan": plan,
+        }
         access = create_access_token(claims)
         refresh = create_refresh_token(claims)
         self.session.add(

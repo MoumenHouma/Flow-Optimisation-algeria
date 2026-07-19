@@ -1,5 +1,6 @@
 """FastAPI application entrypoint — wires the modular monolith together."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
@@ -23,7 +24,7 @@ settings = get_settings()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
     yield
 

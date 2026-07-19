@@ -6,6 +6,7 @@ during dynamic re-optimization (F9); geometry stays JSONB (display-only).
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
@@ -37,7 +38,7 @@ class Route(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     name: Mapped[str | None] = mapped_column(String(100))
     total_distance_m: Mapped[float | None] = mapped_column(Numeric(10, 2))
     total_time_s: Mapped[int | None] = mapped_column(Integer)
-    geometry: Mapped[dict | None] = mapped_column(JSONB)  # GeoJSON LineString
+    geometry: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # GeoJSON LineString
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="planned")
     optimized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

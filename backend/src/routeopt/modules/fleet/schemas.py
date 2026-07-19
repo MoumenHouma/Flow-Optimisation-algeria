@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from routeopt.schemas.common import GeoPoint
@@ -32,7 +34,7 @@ class VehicleOut(BaseModel):
     active: bool
 
     @classmethod
-    def from_model(cls, v) -> "VehicleOut":  # noqa: ANN001
+    def from_model(cls, v: Any) -> "VehicleOut":
         return cls(
             id=str(v.id),
             name=v.name,

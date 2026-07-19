@@ -11,7 +11,8 @@ mirrors optimizer.postprocessor.solution_to_result.
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,11 +31,17 @@ settings = get_settings()
 RESULT_KEY = "opt:result:{job_id}"
 
 
+def _req_float(value: float | None) -> float:
+    """Narrow a nullable numeric known to be non-null (query-filtered)."""
+    assert value is not None
+    return float(value)
+
+
 def _time_window_seconds(delivery: Delivery) -> list[int] | None:
     if delivery.time_window_start is None or delivery.time_window_end is None:
         return None
 
-    def to_s(t) -> int:  # noqa: ANN001
+    def to_s(t: time) -> int:
         return t.hour * 3600 + t.minute * 60 + t.second
 
     return [to_s(delivery.time_window_start), to_s(delivery.time_window_end)]
@@ -80,8 +87,8 @@ class RoutesService:
             "deliveries": [
                 {
                     "id": str(d.id),
-                    "lat": float(d.lat),
-                    "lon": float(d.lon),
+                    "lat": _req_float(d.lat),
+                    "lon": _req_float(d.lon),
                     "demand": float(d.weight),
                     "service_time": d.service_time,
                     "priority": d.priority,
@@ -126,7 +133,7 @@ class RoutesService:
 
     async def get_route_detail(
         self, company_id: str, route_id: str
-    ) -> tuple[Route, dict[uuid.UUID, Delivery], dict | None]:
+    ) -> tuple[Route, dict[uuid.UUID, Delivery], dict[str, float] | None]:
         """Return (route, deliveries_by_id, depot) — enough to draw the route on a map."""
         route = await self.get_route(company_id, route_id)
 
@@ -136,14 +143,14 @@ class RoutesService:
             rows = await self.session.scalars(select(Delivery).where(Delivery.id.in_(ids)))
             deliveries_by_id = {d.id: d for d in rows}
 
-        depot: dict | None = None
+        depot: dict[str, float] | None = None
         if route.vehicle_id is not None:
             vehicle = await self.session.get(Vehicle, route.vehicle_id)
             if vehicle is not None:
                 depot = {"lat": float(vehicle.depot_lat), "lon": float(vehicle.depot_lon)}
         return route, deliveries_by_id, depot
 
-    async def persist_result(self, message: dict) -> None:
+    async def persist_result(self, message: dict[str, Any]) -> None:
         """Persist a worker result message (idempotent: pending/running only)."""
         job = await self.session.get(OptimizationJob, uuid.UUID(message["job_id"]))
         if job is None or job.status not in ("pending", "running"):

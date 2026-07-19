@@ -2,8 +2,9 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.models.delivery import Delivery
@@ -29,7 +30,9 @@ class DashboardService:
             .where(Delivery.company_id == cid, Delivery.deleted_at.is_(None))
             .group_by(Delivery.status)
         )
-        by_status = dict(status_rows.all())
+        by_status: dict[str, int] = {}
+        for status, count in status_rows.all():
+            by_status[status] = count
 
         # Vehicles
         vehicles_total = await self._count(
@@ -86,8 +89,8 @@ class DashboardService:
             week_distance_m=float(week_distance or 0),
         )
 
-    async def _count(self, model, *conditions) -> int:  # noqa: ANN001
+    async def _count(self, model: type[Any], *conditions: ColumnElement[bool]) -> int:
         count = await self.session.scalar(
             select(func.count()).select_from(model).where(*conditions)
         )
-        return count or 0
+        return int(count or 0)

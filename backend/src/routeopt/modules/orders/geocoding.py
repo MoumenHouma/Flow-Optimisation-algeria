@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 import json
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import httpx
 import redis.asyncio as redis
@@ -57,8 +58,8 @@ class Geocoder:
             await asyncio.sleep(settings.nominatim_rate_limit_s)
         return result
 
-    async def _search(self, address: str) -> list[dict]:
-        params = {
+    async def _search(self, address: str) -> list[dict[str, Any]]:
+        params: dict[str, str | int] = {
             "q": address,
             "format": "jsonv2",
             "limit": 1,
@@ -69,10 +70,11 @@ class Geocoder:
         async with httpx.AsyncClient(timeout=10, headers=headers) as client:
             resp = await client.get(f"{self.base_url}/search", params=params)
             resp.raise_for_status()
-            return resp.json()
+            data: list[dict[str, Any]] = resp.json()
+            return data
 
     @staticmethod
-    def _to_result(raw: list[dict]) -> GeocodeResult:
+    def _to_result(raw: list[dict[str, Any]]) -> GeocodeResult:
         if not raw:
             return GeocodeResult(None, None, "failed")
         best = raw[0]

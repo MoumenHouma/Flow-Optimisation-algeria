@@ -1,4 +1,5 @@
 from datetime import time
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -35,7 +36,7 @@ class DeliveryOut(BaseModel):
     priority: int
 
     @classmethod
-    def from_model(cls, d) -> "DeliveryOut":  # noqa: ANN001
+    def from_model(cls, d: Any) -> "DeliveryOut":
         return cls(
             id=str(d.id),
             order_id=d.order_id,

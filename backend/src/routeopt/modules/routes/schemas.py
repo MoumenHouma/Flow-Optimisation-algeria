@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from routeopt.schemas.common import GeoPoint, JobStatus
@@ -54,5 +56,5 @@ class RouteOut(BaseModel):
     depot: GeoPoint | None = None
     # GeoJSON LineString of the road path when available (OSRM /route); the client
     # falls back to straight lines between stops otherwise.
-    geometry: dict | None = None
+    geometry: dict[str, Any] | None = None
     stops: list[RouteStopOut]

@@ -36,6 +36,6 @@ async def check_osrm() -> bool:
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(url)
             resp.raise_for_status()
-            return resp.json().get("code") == "Ok"
+            return bool(resp.json().get("code") == "Ok")
     except Exception:
         return False

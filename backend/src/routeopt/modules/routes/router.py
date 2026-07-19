@@ -76,25 +76,19 @@ async def get_route(
     route, deliveries, depot = await RoutesService(session).get_route_detail(
         user.company_id, route_id
     )
-    stops = [
-        RouteStopOut(
-            delivery_id=str(s.delivery_id),
-            sequence=s.sequence,
-            eta=s.eta.isoformat() if s.eta else None,
-            lat=(
-                float(deliveries[s.delivery_id].lat)
-                if deliveries.get(s.delivery_id) and deliveries[s.delivery_id].lat is not None
-                else None
-            ),
-            lon=(
-                float(deliveries[s.delivery_id].lon)
-                if deliveries.get(s.delivery_id) and deliveries[s.delivery_id].lon is not None
-                else None
-            ),
-            address=deliveries[s.delivery_id].address if deliveries.get(s.delivery_id) else None,
+    stops: list[RouteStopOut] = []
+    for s in route.stops:
+        d = deliveries.get(s.delivery_id)
+        stops.append(
+            RouteStopOut(
+                delivery_id=str(s.delivery_id),
+                sequence=s.sequence,
+                eta=s.eta.isoformat() if s.eta else None,
+                lat=float(d.lat) if d and d.lat is not None else None,
+                lon=float(d.lon) if d and d.lon is not None else None,
+                address=d.address if d else None,
+            )
         )
-        for s in route.stops
-    ]
     return RouteOut(
         id=str(route.id),
         vehicle_id=str(route.vehicle_id) if route.vehicle_id else None,
