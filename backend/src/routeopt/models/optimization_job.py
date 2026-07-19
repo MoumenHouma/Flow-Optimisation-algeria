@@ -35,7 +35,5 @@ class OptimizationJob(UUIDPrimaryKey, Base):
         CheckConstraint(
             "status IN ('pending','running','completed','failed')", name="check_job_status"
         ),
-        CheckConstraint(
-            "trigger IN ('manual','reoptimize','scheduled')", name="check_job_trigger"
-        ),
+        CheckConstraint("trigger IN ('manual','reoptimize','scheduled')", name="check_job_trigger"),
     )

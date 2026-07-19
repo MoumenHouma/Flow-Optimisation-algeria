@@ -1,6 +1,6 @@
 """Shared value objects reused across modules."""
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -10,14 +10,14 @@ class GeoPoint(BaseModel):
     lon: float = Field(..., ge=-180, le=180)
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
-class DeliveryStatus(str, Enum):
+class DeliveryStatus(StrEnum):
     PENDING = "pending"
     GEOCODED = "geocoded"
     ASSIGNED = "assigned"

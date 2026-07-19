@@ -2,6 +2,10 @@
 
 Geocoding tolerance (matched/approximate/failed) reflects the imprecise-address
 reality of the Algerian market (PRD §4.1, §4.3).
+
+Note: the generated ``geog GEOGRAPHY(POINT,4326)`` column (SCHEMA.md §5.1, §8.2)
+is a Postgres computed column managed directly in the Alembic migration, not
+mapped here — keep the two in sync when changing the geo columns.
 """
 
 import uuid
@@ -50,7 +54,8 @@ class Delivery(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     __table_args__ = (
         CheckConstraint("priority IN (1,2,3)", name="check_priority"),
         CheckConstraint(
-            "status IN ('pending','geocoded','assigned','en_route','delivered','failed','cancelled')",
+            "status IN ('pending','geocoded','assigned','en_route',"
+            "'delivered','failed','cancelled')",
             name="check_status",
         ),
         CheckConstraint(

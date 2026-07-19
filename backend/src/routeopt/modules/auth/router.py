@@ -1,7 +1,12 @@
 """Auth endpoints — docs/ARCHITECTURE.md §2.2."""
 
-from fastapi import APIRouter
+from typing import Annotated
 
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from routeopt.core.dependencies import CurrentUser, get_current_user
+from routeopt.database import get_session
 from routeopt.modules.auth.schemas import (
     LoginRequest,
     RefreshRequest,
@@ -11,19 +16,30 @@ from routeopt.modules.auth.schemas import (
 from routeopt.modules.auth.service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-service = AuthService()
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-async def register(payload: RegisterRequest) -> TokenResponse:
-    return await service.register(payload)
+async def register(payload: RegisterRequest, session: SessionDep) -> TokenResponse:
+    return await AuthService(session).register(payload)
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest) -> TokenResponse:
-    return await service.login(payload)
+async def login(payload: LoginRequest, session: SessionDep) -> TokenResponse:
+    return await AuthService(session).login(payload)
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(payload: RefreshRequest) -> TokenResponse:
-    return await service.refresh(payload)
+async def refresh(payload: RefreshRequest, session: SessionDep) -> TokenResponse:
+    return await AuthService(session).refresh(payload)
+
+
+@router.get("/me")
+async def me(current: Annotated[CurrentUser, Depends(get_current_user)]) -> dict[str, str]:
+    """Return the authenticated principal (from the access-token claims)."""
+    return {
+        "user_id": current.user_id,
+        "company_id": current.company_id,
+        "role": current.role,
+    }

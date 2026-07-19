@@ -21,6 +21,7 @@ dist/
 dist-ssr/
 .vite/
 *.local
+*.tsbuildinfo
 coverage/
 
 # Env & secrets
@@ -29,6 +30,7 @@ coverage/
 !.env.example
 *.pem
 *.key
+backend/keys/
 
 # OSRM data (large, generated)
 infra/osrm/data/

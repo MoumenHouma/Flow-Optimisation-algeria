@@ -9,5 +9,7 @@ class FleetService:
         # TODO: enforce company.max_vehicles quota before insert.
         raise NotImplementedError("add vehicle with quota check")
 
-    async def update_vehicle(self, company_id: str, vehicle_id: str, payload) -> object:  # noqa: ANN001
+    async def update_vehicle(
+        self, company_id: str, vehicle_id: str, payload
+    ) -> object:  # noqa: ANN001
         raise NotImplementedError("update vehicle scoped to company_id")

@@ -31,6 +31,11 @@ class AuthError(RouteOptError):
     detail = "Not authenticated"
 
 
+class ConflictError(RouteOptError):
+    status_code = 409
+    detail = "Resource already exists"
+
+
 class RateLimitError(RouteOptError):
     status_code = 429
     detail = "Rate limit exceeded"

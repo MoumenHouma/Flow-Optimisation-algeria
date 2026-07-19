@@ -9,6 +9,7 @@ from routeopt.models.base import Base
 from routeopt.models.company import Company
 from routeopt.models.delivery import Delivery
 from routeopt.models.optimization_job import OptimizationJob
+from routeopt.models.refresh_token import RefreshToken
 from routeopt.models.route import Route, RouteStop
 from routeopt.models.user import User
 from routeopt.models.vehicle import Vehicle
@@ -18,6 +19,7 @@ __all__ = [
     "Company",
     "Delivery",
     "OptimizationJob",
+    "RefreshToken",
     "Route",
     "RouteStop",
     "User",
