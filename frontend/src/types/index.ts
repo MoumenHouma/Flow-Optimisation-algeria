@@ -18,12 +18,11 @@ export interface GeoPoint {
 
 export interface Delivery {
   id: string;
-  orderId?: string;
+  order_id?: string;
   address: string;
   lat?: number;
   lon?: number;
-  timeWindowStart?: string;
-  timeWindowEnd?: string;
+  geocoding_status: string;
   weight: number;
   volume: number;
   priority: 1 | 2 | 3;
@@ -33,30 +32,45 @@ export interface Delivery {
 export interface Vehicle {
   id: string;
   name: string;
-  vehicleType: "car" | "van" | "truck" | "motorcycle";
-  capacityWeight: number;
-  capacityVolume: number;
+  vehicle_type: "car" | "van" | "truck" | "motorcycle";
+  license_plate?: string;
+  capacity_weight: number;
+  capacity_volume: number;
   depot: GeoPoint;
+  depot_address: string;
   active: boolean;
 }
 
 export interface RouteStop {
-  deliveryId: string;
+  delivery_id: string;
   sequence: number;
   eta?: string;
 }
 
 export interface RouteResult {
   id: string;
-  vehicleId?: string;
-  totalDistanceM?: number;
-  totalTimeS?: number;
+  vehicle_id?: string;
+  total_distance_m?: number;
+  total_time_s?: number;
   status: string;
   stops: RouteStop[];
 }
 
+// API responses are snake_case (FastAPI); these mirror the wire shape.
 export interface OptimizeResponse {
-  jobId: string;
+  job_id: string;
   status: JobStatus;
-  estimatedDurationMs: number;
+  estimated_duration_ms: number;
+}
+
+export interface JobResult {
+  job_id: string;
+  status: JobStatus;
+  delivery_count?: number;
+  vehicle_count?: number;
+  solver_strategy?: string;
+  duration_ms?: number;
+  total_distance_m?: number;
+  route_ids: string[];
+  error_message?: string;
 }

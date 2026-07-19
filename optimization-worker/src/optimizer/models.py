@@ -24,8 +24,8 @@ class Delivery:
     id: str
     lat: float
     lon: float
-    demand: float = 0            # weight or volume unit used for capacity dimension
-    service_time: int = 300      # seconds
+    demand: float = 0  # weight or volume unit used for capacity dimension
+    service_time: int = 300  # seconds
     priority: int = 1
     time_window: tuple[int, int] | None = None  # (start, end) seconds from midnight
 
@@ -67,5 +67,5 @@ class VRPSolution:
     total_distance_m: float = 0
     total_time_s: int = 0
     objective_value: int = 0
-    strategy: str = "or_tools"      # or_tools | greedy_fallback | decomposition
+    strategy: str = "or_tools"  # or_tools | greedy_fallback | decomposition
     is_suboptimal: bool = False

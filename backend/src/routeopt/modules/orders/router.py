@@ -2,37 +2,38 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Body, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.dependencies import CurrentUser, get_current_user, require_roles
-from routeopt.modules.orders.schemas import BulkImportResponse, DeliveryOut
+from routeopt.database import get_session
+from routeopt.modules.orders.schemas import BulkCreateResponse, DeliveryIn, DeliveryOut
 from routeopt.modules.orders.service import OrdersService
 
 router = APIRouter(prefix="/orders", tags=["orders"])
-service = OrdersService()
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-@router.post("/bulk", response_model=BulkImportResponse)
-async def bulk_import(
-    file: UploadFile,
+@router.post("", response_model=BulkCreateResponse, status_code=201)
+async def create_deliveries(
+    items: Annotated[list[DeliveryIn], Body(min_length=1, max_length=500)],
+    session: SessionDep,
     user: Annotated[CurrentUser, Depends(require_roles("admin", "manager"))],
-) -> BulkImportResponse:
-    """Import deliveries from CSV/Excel (F1)."""
-    raise NotImplementedError("parse file -> service.bulk_import")
+) -> BulkCreateResponse:
+    """Create deliveries in bulk (F1). Rows with lat/lon skip geocoding."""
+    deliveries = await OrdersService(session).bulk_create(user.company_id, items)
+    out = [DeliveryOut.from_model(d) for d in deliveries]
+    return BulkCreateResponse(
+        created=len(out),
+        geocoding_pending=sum(1 for d in out if d.geocoding_status == "pending"),
+        deliveries=out,
+    )
 
 
-@router.get("/{delivery_id}", response_model=DeliveryOut)
-async def get_delivery(
-    delivery_id: str,
+@router.get("", response_model=list[DeliveryOut])
+async def list_routable(
+    session: SessionDep,
     user: Annotated[CurrentUser, Depends(get_current_user)],
-) -> DeliveryOut:
-    raise NotImplementedError("fetch delivery scoped to user.company_id")
-
-
-@router.put("/{delivery_id}/status")
-async def update_status(
-    delivery_id: str,
-    user: Annotated[CurrentUser, Depends(get_current_user)],
-) -> dict[str, str]:
-    """Update delivery status (delivered/failed/...). Used by Driver PWA (F8)."""
-    raise NotImplementedError("update status + append delivery_status_history")
+) -> list[DeliveryOut]:
+    deliveries = await OrdersService(session).list_routable(user.company_id)
+    return [DeliveryOut.from_model(d) for d in deliveries]

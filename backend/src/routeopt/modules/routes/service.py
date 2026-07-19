@@ -1,42 +1,213 @@
-"""Route optimization orchestration.
+"""Route optimization orchestration (docs/ARCHITECTURE.md §3.1).
 
-Optimization is asynchronous (docs/ARCHITECTURE.md §3.1): the API creates an
-OptimizationJob row, pushes the job id onto the Redis queue consumed by the
-optimization worker, and returns immediately. Clients poll GET /routes jobs or
-subscribe via SSE.
+Optimization is asynchronous: submit_job builds the full problem from the DB,
+creates an OptimizationJob, and enqueues it for the worker. The worker writes its
+result to ``opt:result:{job_id}``; get_job persists that result lazily on the
+first poll after completion (idempotent — only pending/running jobs are persisted).
+
+Worker/backend share only the JSON message contract, not code — the result shape
+mirrors optimizer.postprocessor.solution_to_result.
 """
 
 import json
 import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.config import get_settings
+from routeopt.core.exceptions import NotFoundError, ValidationError
+from routeopt.models.delivery import Delivery
+from routeopt.models.optimization_job import OptimizationJob
+from routeopt.models.route import Route, RouteStop
+from routeopt.models.vehicle import Vehicle
+from routeopt.modules.routes.schemas import OptimizeRequest
 from routeopt.redis_client import redis_client
 
 settings = get_settings()
 
+RESULT_KEY = "opt:result:{job_id}"
+
+
+def _time_window_seconds(delivery: Delivery) -> list[int] | None:
+    if delivery.time_window_start is None or delivery.time_window_end is None:
+        return None
+
+    def to_s(t) -> int:  # noqa: ANN001
+        return t.hour * 3600 + t.minute * 60 + t.second
+
+    return [to_s(delivery.time_window_start), to_s(delivery.time_window_end)]
+
 
 class RoutesService:
-    async def submit_job(self, company_id: str, payload: dict) -> str:
-        """Enqueue an optimization job, return its id."""
-        job_id = str(uuid.uuid4())
-        message = {"job_id": job_id, "company_id": company_id, "payload": payload}
-        # TODO: persist OptimizationJob(status='pending') before enqueue.
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def submit_job(
+        self, company_id: str, user_id: str, payload: OptimizeRequest
+    ) -> tuple[str, int]:
+        """Create + enqueue an optimization job. Returns (job_id, delivery_count)."""
+        deliveries = await self._resolve_deliveries(company_id, payload.delivery_ids)
+        vehicles = await self._resolve_vehicles(company_id, payload.vehicle_ids)
+        if not deliveries:
+            raise ValidationError("No routable deliveries (need geocoded, unassigned stops)")
+        if not vehicles:
+            raise ValidationError("No active vehicles available")
+
+        # MVP single-depot: use the request depot, else the first vehicle's depot.
+        if payload.depot is not None:
+            depot = {"lat": payload.depot.lat, "lon": payload.depot.lon}
+        else:
+            depot = {"lat": float(vehicles[0].depot_lat), "lon": float(vehicles[0].depot_lon)}
+
+        job = OptimizationJob(
+            company_id=uuid.UUID(company_id),
+            requested_by_user_id=uuid.UUID(user_id),
+            status="pending",
+            delivery_count=len(deliveries),
+            vehicle_count=len(vehicles),
+            created_at=datetime.now(UTC),
+        )
+        self.session.add(job)
+        await self.session.flush()
+
+        message = {
+            "job_id": str(job.id),
+            "company_id": company_id,
+            "depot": depot,
+            "constraints": payload.constraints.model_dump(),
+            "deliveries": [
+                {
+                    "id": str(d.id),
+                    "lat": float(d.lat),
+                    "lon": float(d.lon),
+                    "demand": float(d.weight),
+                    "service_time": d.service_time,
+                    "priority": d.priority,
+                    "time_window": _time_window_seconds(d),
+                }
+                for d in deliveries
+            ],
+            "vehicles": [
+                {
+                    "id": str(v.id),
+                    "capacity": float(v.capacity_weight),
+                    "depot": {"lat": float(v.depot_lat), "lon": float(v.depot_lon)},
+                }
+                for v in vehicles
+            ],
+        }
         await redis_client.rpush(settings.optimize_queue, json.dumps(message))
-        return job_id
+        await self.session.commit()
+        return str(job.id), len(deliveries)
+
+    async def get_job(self, company_id: str, job_id: str) -> OptimizationJob:
+        job = await self._get_job_scoped(company_id, job_id)
+        if job.status in ("pending", "running"):
+            raw = await redis_client.get(RESULT_KEY.format(job_id=job_id))
+            if raw:
+                await self.persist_result(json.loads(raw))
+                await self.session.refresh(job)
+        return job
+
+    async def route_ids_for_job(self, job_id: str) -> list[str]:
+        result = await self.session.scalars(
+            select(Route.id).where(Route.optimization_job_id == uuid.UUID(job_id))
+        )
+        return [str(r) for r in result]
+
+    async def get_route(self, company_id: str, route_id: str) -> Route:
+        route = await self.session.get(Route, uuid.UUID(route_id))
+        if route is None or str(route.company_id) != company_id or route.deleted_at is not None:
+            raise NotFoundError("Route not found")
+        await self.session.refresh(route, attribute_names=["stops"])
+        return route
+
+    async def persist_result(self, message: dict) -> None:
+        """Persist a worker result message (idempotent: pending/running only)."""
+        job = await self.session.get(OptimizationJob, uuid.UUID(message["job_id"]))
+        if job is None or job.status not in ("pending", "running"):
+            return
+
+        now = datetime.now(UTC)
+        if message.get("status") == "failed":
+            job.status = "failed"
+            job.error_message = message.get("error")
+            job.duration_ms = message.get("duration_ms")
+            job.completed_at = now
+            await self.session.commit()
+            return
+
+        for route_msg in message.get("routes", []):
+            route = Route(
+                company_id=job.company_id,
+                vehicle_id=(
+                    uuid.UUID(route_msg["vehicle_id"]) if route_msg.get("vehicle_id") else None
+                ),
+                optimization_job_id=job.id,
+                total_distance_m=route_msg.get("total_distance_m"),
+                total_time_s=route_msg.get("total_time_s"),
+                status="planned",
+                optimized_at=now,
+            )
+            self.session.add(route)
+            await self.session.flush()
+            for stop in route_msg.get("stops", []):
+                self.session.add(
+                    RouteStop(
+                        route_id=route.id,
+                        delivery_id=uuid.UUID(stop["delivery_id"]),
+                        sequence=stop["sequence"],
+                    )
+                )
+                delivery = await self.session.get(Delivery, uuid.UUID(stop["delivery_id"]))
+                if delivery is not None:
+                    delivery.route_id = route.id
+                    delivery.status = "assigned"
+
+        job.status = "completed"
+        job.solver_strategy = message.get("strategy")
+        job.duration_ms = message.get("duration_ms")
+        job.result = {
+            "total_distance_m": message.get("total_distance_m"),
+            "total_time_s": message.get("total_time_s"),
+            "objective_value": message.get("objective_value"),
+            "used_osrm": message.get("used_osrm"),
+            "is_suboptimal": message.get("is_suboptimal"),
+        }
+        job.completed_at = now
+        await self.session.commit()
 
     @staticmethod
     def estimate_duration_ms(num_deliveries: int) -> int:
-        """Rough ETA shown to the user (docs/RULES.md §7.1 budgets)."""
-        # ~100ms/stop as a first-order estimate; refined from historical jobs later.
         return max(1000, num_deliveries * 100)
 
-    async def get_route(self, company_id: str, route_id: str) -> object:
-        raise NotImplementedError("fetch route + stops scoped to company_id")
+    # ── helpers ──────────────────────────────────────────────────────────
+    async def _resolve_deliveries(self, company_id: str, ids: list[str]) -> list[Delivery]:
+        stmt = select(Delivery).where(
+            Delivery.company_id == uuid.UUID(company_id),
+            Delivery.deleted_at.is_(None),
+            Delivery.route_id.is_(None),
+            Delivery.lat.is_not(None),
+            Delivery.lon.is_not(None),
+        )
+        if ids:
+            stmt = stmt.where(Delivery.id.in_([uuid.UUID(i) for i in ids]))
+        return list(await self.session.scalars(stmt))
 
-    async def export(self, company_id: str, route_id: str, fmt: str) -> bytes:
-        # TODO: PDF / Excel / GPX export (F5).
-        raise NotImplementedError("export route as pdf/excel/gpx")
+    async def _resolve_vehicles(self, company_id: str, ids: list[str]) -> list[Vehicle]:
+        stmt = select(Vehicle).where(
+            Vehicle.company_id == uuid.UUID(company_id),
+            Vehicle.deleted_at.is_(None),
+            Vehicle.active.is_(True),
+        )
+        if ids:
+            stmt = stmt.where(Vehicle.id.in_([uuid.UUID(i) for i in ids]))
+        return list(await self.session.scalars(stmt))
 
-    async def reoptimize(self, company_id: str, route_id: str) -> str:
-        """Dynamic re-optimization with warm-start (F9)."""
-        raise NotImplementedError("enqueue reoptimize job with current state")
+    async def _get_job_scoped(self, company_id: str, job_id: str) -> OptimizationJob:
+        job = await self.session.get(OptimizationJob, uuid.UUID(job_id))
+        if job is None or str(job.company_id) != company_id:
+            raise NotFoundError("Job not found")
+        return job

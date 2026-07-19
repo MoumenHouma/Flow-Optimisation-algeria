@@ -11,8 +11,9 @@ class OptimizationConstraints(BaseModel):
 
 
 class OptimizeRequest(BaseModel):
-    delivery_ids: list[str] = Field(..., min_length=1, max_length=500)
-    vehicle_ids: list[str] = Field(..., min_length=1, max_length=50)
+    # Empty lists mean "all routable deliveries" / "all active vehicles".
+    delivery_ids: list[str] = Field(default_factory=list, max_length=500)
+    vehicle_ids: list[str] = Field(default_factory=list, max_length=50)
     depot: GeoPoint | None = None
     constraints: OptimizationConstraints = OptimizationConstraints()
 
@@ -21,6 +22,18 @@ class OptimizeResponse(BaseModel):
     job_id: str
     status: JobStatus
     estimated_duration_ms: int
+
+
+class JobOut(BaseModel):
+    job_id: str
+    status: JobStatus
+    delivery_count: int | None = None
+    vehicle_count: int | None = None
+    solver_strategy: str | None = None
+    duration_ms: int | None = None
+    total_distance_m: float | None = None
+    route_ids: list[str] = Field(default_factory=list)
+    error_message: str | None = None
 
 
 class RouteStopOut(BaseModel):

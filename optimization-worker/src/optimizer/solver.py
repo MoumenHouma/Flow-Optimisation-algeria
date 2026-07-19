@@ -67,6 +67,7 @@ class VRPSolver:
 
         # --- Capacity dimension ---
         if problem.respect_capacity:
+
             def demand_cb(from_index: int) -> int:
                 node = manager.IndexToNode(from_index)
                 return 0 if node == depot_index else int(problem.deliveries[node - 1].demand)
@@ -82,6 +83,7 @@ class VRPSolver:
 
         # --- Time dimension with windows ---
         if problem.respect_time_windows:
+
             def time_cb(from_index: int, to_index: int) -> int:
                 f, t = manager.IndexToNode(from_index), manager.IndexToNode(to_index)
                 service = 0 if f == depot_index else problem.deliveries[f - 1].service_time
@@ -119,7 +121,9 @@ class VRPSolver:
             while not routing.IsEnd(index):
                 node = manager.IndexToNode(index)
                 if node != 0:  # skip depot
-                    stops.append(RouteStop(delivery_id=problem.deliveries[node - 1].id, sequence=seq))
+                    stops.append(
+                        RouteStop(delivery_id=problem.deliveries[node - 1].id, sequence=seq)
+                    )
                     seq += 1
                 prev = index
                 index = assignment.Value(routing.NextVar(index))

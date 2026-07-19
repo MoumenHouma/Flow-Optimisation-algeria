@@ -9,6 +9,10 @@ class DeliveryIn(BaseModel):
     order_id: str | None = None
     address: str = Field(..., min_length=1)
     address_locale: str = "fr"
+    # If lat/lon are supplied, geocoding is skipped (status=matched). Otherwise the
+    # delivery is stored pending geocoding (F2, Nominatim) — see OrdersService.
+    lat: float | None = Field(None, ge=-90, le=90)
+    lon: float | None = Field(None, ge=-180, le=180)
     customer_phone: str | None = None
     time_window_start: time | None = None
     time_window_end: time | None = None
@@ -18,15 +22,35 @@ class DeliveryIn(BaseModel):
     priority: int = Field(1, ge=1, le=3)
 
 
-class DeliveryOut(DeliveryIn):
+class DeliveryOut(BaseModel):
     id: str
-    lat: float | None = None
-    lon: float | None = None
+    order_id: str | None
+    address: str
+    lat: float | None
+    lon: float | None
     geocoding_status: str
     status: DeliveryStatus
+    weight: float
+    volume: float
+    priority: int
+
+    @classmethod
+    def from_model(cls, d) -> "DeliveryOut":  # noqa: ANN001
+        return cls(
+            id=str(d.id),
+            order_id=d.order_id,
+            address=d.address,
+            lat=float(d.lat) if d.lat is not None else None,
+            lon=float(d.lon) if d.lon is not None else None,
+            geocoding_status=d.geocoding_status,
+            status=DeliveryStatus(d.status),
+            weight=float(d.weight),
+            volume=float(d.volume),
+            priority=d.priority,
+        )
 
 
-class BulkImportResponse(BaseModel):
-    imported: int
-    failed: int
+class BulkCreateResponse(BaseModel):
+    created: int
+    geocoding_pending: int
     deliveries: list[DeliveryOut]

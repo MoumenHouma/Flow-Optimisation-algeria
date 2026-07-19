@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass
 
 import httpx
@@ -17,6 +18,10 @@ from optimizer.config import get_settings
 from optimizer.models import GeoPoint
 
 settings = get_settings()
+
+# Great-circle fallback speed when OSRM is unavailable (~30 km/h urban Algeria).
+_FALLBACK_SPEED_MPS = 8.33
+_EARTH_RADIUS_M = 6_371_000
 
 
 class OSRMTimeoutError(Exception):
@@ -67,3 +72,40 @@ async def build_distance_matrix(
         ex=settings.distance_matrix_ttl_s,
     )
     return matrix
+
+
+def _haversine_m(a: GeoPoint, b: GeoPoint) -> float:
+    lat1, lat2 = math.radians(a.lat), math.radians(b.lat)
+    dlat = lat2 - lat1
+    dlon = math.radians(b.lon - a.lon)
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 2 * _EARTH_RADIUS_M * math.asin(math.sqrt(h))
+
+
+def haversine_matrix(points: list[GeoPoint]) -> DistanceMatrix:
+    """Great-circle NxN matrix — approximation used when OSRM is unreachable.
+
+    OSM coverage in Algeria is uneven (PRD §4.3), so a road-network miss falls
+    back to straight-line distance rather than failing the whole optimization.
+    """
+    n = len(points)
+    distances = [[0.0] * n for _ in range(n)]
+    durations = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = _haversine_m(points[i], points[j])
+            distances[i][j] = distances[j][i] = d
+            durations[i][j] = durations[j][i] = d / _FALLBACK_SPEED_MPS
+    return DistanceMatrix(durations=durations, distances=distances)
+
+
+async def build_matrix_with_fallback(
+    points: list[GeoPoint],
+    redis_client: redis.Redis,
+    osrm_url: str | None = None,
+) -> tuple[DistanceMatrix, bool]:
+    """Return (matrix, used_osrm). Falls back to haversine on any OSRM failure."""
+    try:
+        return await build_distance_matrix(points, redis_client, osrm_url), True
+    except Exception:  # noqa: BLE001 - OSRM down/unreachable/timeout -> approximate
+        return haversine_matrix(points), False

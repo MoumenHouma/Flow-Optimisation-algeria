@@ -1,7 +1,11 @@
-"""Queue consumer: pops optimization jobs from Redis and runs the solver.
+"""Queue consumer: pops optimization jobs from Redis, solves, publishes results.
 
-Flow (docs/ARCHITECTURE.md §3.1): BLPOP queue:optimize -> build problem ->
-distance matrix (OSRM+cache) -> solve -> persist result -> notify subscribers.
+Flow (docs/ARCHITECTURE.md §3.1): BLPOP queue:optimize -> hydrate problem from
+the message payload -> distance matrix (OSRM+cache, haversine fallback) -> solve
+-> write result to `opt:result:{job_id}` for the backend to persist on poll.
+
+The worker is intentionally DB-free: the backend enqueues the full problem and
+persists the result, so no ORM models are duplicated here.
 """
 
 from __future__ import annotations
@@ -13,13 +17,22 @@ import time
 import redis.asyncio as redis
 
 from optimizer.config import get_settings
-from optimizer.distance_matrix import build_distance_matrix
-from optimizer.models import GeoPoint, OptimizationError, VRPProblem
+from optimizer.distance_matrix import build_matrix_with_fallback
+from optimizer.models import (
+    Delivery,
+    GeoPoint,
+    OptimizationError,
+    Vehicle,
+    VRPProblem,
+)
 from optimizer.postprocessor import solution_to_result
 from optimizer.preprocessor import needs_decomposition, validate
 from optimizer.solver import VRPSolver
 
 settings = get_settings()
+
+RESULT_KEY = "opt:result:{job_id}"
+RESULT_TTL_S = 3600
 
 
 def _time_limit_for(num_deliveries: int) -> int:
@@ -30,29 +43,84 @@ def _time_limit_for(num_deliveries: int) -> int:
     return settings.time_limit_large_s
 
 
-async def process_job(message: dict, redis_client: redis.Redis) -> dict:
-    """Process one job payload, returning the serialized result."""
-    started = time.monotonic()
-    problem = _build_problem(message["payload"])
-    validate(problem)
-
-    if needs_decomposition(problem):
-        # TODO: cluster -> solve sub-problems in parallel -> merge (ARCHITECTURE §4.1).
-        pass
-
-    points = [problem.depot] + [GeoPoint(d.lat, d.lon) for d in problem.deliveries]
-    matrix = await build_distance_matrix(points, redis_client)
-
-    solver = VRPSolver(time_limit_seconds=_time_limit_for(len(problem.deliveries)))
-    solution = solver.solve(problem, matrix)
-
-    duration_ms = int((time.monotonic() - started) * 1000)
-    return solution_to_result(solution, duration_ms)
-
-
 def _build_problem(payload: dict) -> VRPProblem:
-    # TODO: hydrate deliveries/vehicles from payload ids via the backend/DB.
-    raise NotImplementedError("hydrate VRPProblem from job payload")
+    depot = GeoPoint(**payload["depot"])
+    deliveries = [
+        Delivery(
+            id=d["id"],
+            lat=d["lat"],
+            lon=d["lon"],
+            demand=d.get("demand", 0),
+            service_time=d.get("service_time", 300),
+            priority=d.get("priority", 1),
+            time_window=tuple(d["time_window"]) if d.get("time_window") else None,
+        )
+        for d in payload["deliveries"]
+    ]
+    vehicles = [
+        Vehicle(
+            id=v["id"],
+            capacity=v["capacity"],
+            depot=GeoPoint(v["depot"]["lat"], v["depot"]["lon"]),
+        )
+        for v in payload["vehicles"]
+    ]
+    constraints = payload.get("constraints", {})
+    return VRPProblem(
+        depot=depot,
+        deliveries=deliveries,
+        vehicles=vehicles,
+        respect_time_windows=constraints.get("respect_time_windows", True),
+        respect_capacity=constraints.get("respect_capacity", True),
+    )
+
+
+async def process_job(message: dict, redis_client: redis.Redis) -> dict:
+    """Process one job payload; return the result message the backend persists."""
+    started = time.monotonic()
+    job_id = message["job_id"]
+    company_id = message.get("company_id")
+
+    try:
+        problem = _build_problem(message)
+        validate(problem)
+
+        if needs_decomposition(problem):
+            # TODO: cluster -> solve sub-problems in parallel -> merge (ARCHITECTURE §4.1).
+            pass
+
+        points = [problem.depot] + [GeoPoint(d.lat, d.lon) for d in problem.deliveries]
+        matrix, used_osrm = await build_matrix_with_fallback(points, redis_client)
+
+        solver = VRPSolver(time_limit_seconds=_time_limit_for(len(problem.deliveries)))
+        solution = solver.solve(problem, matrix)
+        if not used_osrm:
+            solution.is_suboptimal = True  # distances are straight-line approximations
+
+        duration_ms = int((time.monotonic() - started) * 1000)
+        return {
+            "job_id": job_id,
+            "company_id": company_id,
+            "status": "completed",
+            "error": None,
+            "used_osrm": used_osrm,
+            **solution_to_result(solution, duration_ms),
+        }
+    except OptimizationError as exc:
+        return {
+            "job_id": job_id,
+            "company_id": company_id,
+            "status": "failed",
+            "error": str(exc),
+            "duration_ms": int((time.monotonic() - started) * 1000),
+            "routes": [],
+        }
+
+
+async def _publish_result(redis_client: redis.Redis, result: dict) -> None:
+    await redis_client.set(
+        RESULT_KEY.format(job_id=result["job_id"]), json.dumps(result), ex=RESULT_TTL_S
+    )
 
 
 async def run() -> None:
@@ -64,14 +132,9 @@ async def run() -> None:
             continue
         _, raw = item
         message = json.loads(raw)
-        try:
-            result = await process_job(message, redis_client)
-            # TODO: persist result to optimization_jobs + publish SSE notification.
-            print(f"[optimizer] job {message['job_id']} done: {result['strategy']}")  # noqa: T201
-        except OptimizationError as exc:
-            print(f"[optimizer] job {message['job_id']} failed: {exc}")  # noqa: T201
-        except NotImplementedError as exc:  # scaffold guard
-            print(f"[optimizer] job {message['job_id']} not wired: {exc}")  # noqa: T201
+        result = await process_job(message, redis_client)
+        await _publish_result(redis_client, result)
+        print(f"[optimizer] job {result['job_id']} -> {result['status']}")  # noqa: T201
 
 
 if __name__ == "__main__":

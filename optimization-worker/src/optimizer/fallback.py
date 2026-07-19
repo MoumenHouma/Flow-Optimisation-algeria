@@ -27,8 +27,7 @@ def greedy_nearest_neighbor(problem: VRPProblem, matrix: DistanceMatrix) -> VRPS
             candidates = [
                 n
                 for n in unvisited
-                if not problem.respect_capacity
-                or problem.deliveries[n - 1].demand <= capacity_left
+                if not problem.respect_capacity or problem.deliveries[n - 1].demand <= capacity_left
             ]
             if not candidates:
                 break
