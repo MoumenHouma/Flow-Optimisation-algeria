@@ -17,7 +17,7 @@ import time
 import redis.asyncio as redis
 
 from optimizer.config import get_settings
-from optimizer.distance_matrix import build_matrix_with_fallback
+from optimizer.distance_matrix import build_matrix_with_fallback, osrm_route_geometry
 from optimizer.models import (
     Delivery,
     GeoPoint,
@@ -97,6 +97,17 @@ async def process_job(message: dict, redis_client: redis.Redis) -> dict:
         if not used_osrm:
             solution.is_suboptimal = True  # distances are straight-line approximations
 
+        # Real road geometry per route (only worth it when OSRM is actually up).
+        geometries: dict[str, dict] = {}
+        if used_osrm:
+            coords = {d.id: GeoPoint(d.lat, d.lon) for d in problem.deliveries}
+            for route in solution.routes:
+                ordered = sorted(route.stops, key=lambda s: s.sequence)
+                pts = [problem.depot, *[coords[s.delivery_id] for s in ordered], problem.depot]
+                geom = await osrm_route_geometry(pts)
+                if geom is not None:
+                    geometries[route.vehicle_id] = geom
+
         duration_ms = int((time.monotonic() - started) * 1000)
         return {
             "job_id": job_id,
@@ -104,7 +115,7 @@ async def process_job(message: dict, redis_client: redis.Redis) -> dict:
             "status": "completed",
             "error": None,
             "used_osrm": used_osrm,
-            **solution_to_result(solution, duration_ms),
+            **solution_to_result(solution, duration_ms, geometries),
         }
     except OptimizationError as exc:
         return {

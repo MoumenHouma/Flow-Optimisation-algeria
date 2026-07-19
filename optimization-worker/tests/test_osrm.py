@@ -16,6 +16,7 @@ from optimizer.distance_matrix import (
     build_distance_matrix,
     build_matrix_with_fallback,
     osrm_healthy,
+    osrm_route_geometry,
 )
 from optimizer.models import GeoPoint
 
@@ -28,12 +29,29 @@ OSRM_OK = {
     "distances": [[0, 1000, None], [1000, 0, 2000], [None, 2000, 0]],
 }
 
+# A valid OSRM /route response with a GeoJSON LineString.
+OSRM_ROUTE_OK = {
+    "code": "Ok",
+    "routes": [
+        {
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[3.0588, 36.7538], [3.06, 36.75], [3.07, 36.76]],
+            }
+        }
+    ],
+}
+
 
 class _Handler(http.server.BaseHTTPRequestHandler):
-    response: dict = OSRM_OK
+    response: dict = OSRM_OK  # /table response
+    route_response: dict = OSRM_ROUTE_OK  # /route response
 
     def do_GET(self) -> None:  # noqa: N802
-        body = json.dumps(type(self).response).encode()
+        payload = (
+            type(self).route_response if self.path.startswith("/route") else type(self).response
+        )
+        body = json.dumps(payload).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -54,6 +72,7 @@ def _bypass_proxy(monkeypatch):
 @pytest.fixture
 def osrm_server():
     _Handler.response = OSRM_OK
+    _Handler.route_response = OSRM_ROUTE_OK
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -101,3 +120,48 @@ async def test_health_check(osrm_server):
     assert await osrm_healthy(base_url) is True
     # An unused port -> unreachable -> False
     assert await osrm_healthy("http://127.0.0.1:1") is False
+
+
+async def test_route_geometry_returns_linestring(osrm_server):
+    base_url, _ = osrm_server
+    geom = await osrm_route_geometry(POINTS, osrm_url=base_url)
+    assert geom is not None
+    assert geom["type"] == "LineString"
+    assert len(geom["coordinates"]) == 3
+
+
+async def test_route_geometry_none_on_non_ok(osrm_server):
+    base_url, handler = osrm_server
+    handler.route_response = {"code": "NoRoute"}
+    assert await osrm_route_geometry(POINTS, osrm_url=base_url) is None
+
+
+async def test_route_geometry_none_when_unreachable():
+    assert await osrm_route_geometry(POINTS, osrm_url="http://127.0.0.1:1") is None
+
+
+async def test_process_job_attaches_geometry_when_osrm_used(osrm_server, redis_client, monkeypatch):
+    """End-to-end worker run against mock OSRM (/table + /route) → route has geometry."""
+    from optimizer.worker import process_job
+
+    base_url, _ = osrm_server
+    monkeypatch.setattr("optimizer.distance_matrix.settings.osrm_url", base_url)
+    monkeypatch.setattr("optimizer.worker.settings.time_limit_small_s", 2)  # keep solve fast
+
+    job = {
+        "job_id": "job-geo",
+        "company_id": "co-1",
+        "depot": {"lat": 36.7538, "lon": 3.0588},
+        "constraints": {"respect_time_windows": False, "respect_capacity": True},
+        "deliveries": [
+            {"id": "d1", "lat": 36.75, "lon": 3.06, "demand": 1},
+            {"id": "d2", "lat": 36.76, "lon": 3.07, "demand": 1},
+        ],
+        "vehicles": [{"id": "v1", "capacity": 100, "depot": {"lat": 36.7538, "lon": 3.0588}}],
+    }
+    result = await process_job(job, redis_client)
+
+    assert result["used_osrm"] is True
+    assert result["routes"]
+    assert all(r["geometry"] is not None for r in result["routes"])
+    assert result["routes"][0]["geometry"]["type"] == "LineString"

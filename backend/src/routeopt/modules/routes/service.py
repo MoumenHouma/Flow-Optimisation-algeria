@@ -174,6 +174,7 @@ class RoutesService:
                 optimization_job_id=job.id,
                 total_distance_m=route_msg.get("total_distance_m"),
                 total_time_s=route_msg.get("total_time_s"),
+                geometry=route_msg.get("geometry"),
                 status="planned",
                 optimized_at=now,
             )

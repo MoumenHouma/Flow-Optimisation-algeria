@@ -159,3 +159,29 @@ async def osrm_healthy(osrm_url: str | None = None, timeout: float = 5.0) -> boo
             return resp.json().get("code") == "Ok"
     except (httpx.HTTPError, ValueError):
         return False
+
+
+async def osrm_route_geometry(points: list[GeoPoint], osrm_url: str | None = None) -> dict | None:
+    """Return the road-path GeoJSON LineString for an ordered point list, or None.
+
+    Calls OSRM /route with overview=full & geometries=geojson. Any failure
+    (OSRM down, non-Ok, malformed) returns None so the caller keeps the
+    straight-line fallback — never fails the optimization over a missing map path.
+    """
+    if len(points) < 2:
+        return None
+    osrm_url = (osrm_url or settings.osrm_url).rstrip("/")
+    coords = ";".join(f"{p.lon},{p.lat}" for p in points)
+    url = f"{osrm_url}/route/v1/driving/{coords}"
+    params = {"overview": "full", "geometries": "geojson"}
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(url, params=params)
+            resp.raise_for_status()
+            body = resp.json()
+        if body.get("code") != "Ok" or not body.get("routes"):
+            return None
+        geometry = body["routes"][0].get("geometry")
+        return geometry if isinstance(geometry, dict) else None
+    except (httpx.HTTPError, ValueError, KeyError, IndexError):
+        return None

@@ -128,6 +128,10 @@ async def test_full_optimize_flow(client: AsyncClient, fake_redis) -> None:
                 "vehicle_id": msg["vehicles"][0]["id"],
                 "total_distance_m": 1234.5,
                 "total_time_s": 300,
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[3.0588, 36.7538], [3.06, 36.75], [3.07, 36.76]],
+                },
                 "stops": [
                     {"delivery_id": delivery_ids[0], "sequence": 0, "eta_s": 0},
                     {"delivery_id": delivery_ids[1], "sequence": 1, "eta_s": 600},
@@ -155,6 +159,9 @@ async def test_full_optimize_flow(client: AsyncClient, fake_redis) -> None:
     # Enriched for the map: each stop carries coordinates + the route has a depot
     assert all(s["lat"] is not None and s["lon"] is not None for s in stops)
     assert route_body["depot"] == {"lat": 36.7538, "lon": 3.0588}
+    # Road geometry (OSRM /route) round-trips to the client
+    assert route_body["geometry"]["type"] == "LineString"
+    assert len(route_body["geometry"]["coordinates"]) == 3
 
     # Export the route sheet (F5)
     rid = body["route_ids"][0]
