@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 from openpyxl import load_workbook
 
-from routeopt.modules.routes.export import build_excel, build_pdf
+from routeopt.modules.routes.export import _is_arabic, _shape, build_excel, build_pdf
 
 
 def _fixture():
@@ -61,3 +61,36 @@ def test_build_pdf_returns_pdf_bytes():
     content = build_pdf(route, deliveries)
     assert content[:5] == b"%PDF-"
     assert len(content) > 800  # non-trivial document
+
+
+def test_is_arabic_detection():
+    assert _is_arabic("12 شارع ديدوش مراد")
+    assert not _is_arabic("12 Rue Didouche Mourad")
+    assert not _is_arabic("")
+
+
+def test_shape_reorders_arabic_and_leaves_latin():
+    latin = "12 Rue Didouche"
+    assert _shape(latin) == latin  # untouched
+
+    arabic = "شارع"
+    shaped = _shape(arabic)
+    assert shaped != arabic  # reshaped to presentation forms + bidi-reordered
+    # Reshaping maps to Arabic Presentation Forms-B (U+FE70..U+FEFF)
+    assert any("ﹰ" <= c <= "﻿" for c in shaped)
+
+
+def test_build_pdf_with_arabic_address_builds():
+    d = SimpleNamespace(
+        id=uuid.uuid4(),
+        address="12 شارع ديدوش مراد, الجزائر",
+        order_id="CMD-9",
+        time_window_start=None,
+        time_window_end=None,
+        weight=3,
+        customer_phone="0550000000",
+    )
+    stops = [SimpleNamespace(delivery_id=d.id, sequence=0)]
+    route = SimpleNamespace(id=uuid.uuid4(), total_distance_m=1000, stops=stops)
+    content = build_pdf(route, {d.id: d})
+    assert content[:5] == b"%PDF-"

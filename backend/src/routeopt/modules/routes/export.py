@@ -1,25 +1,60 @@
 """Route export to PDF and Excel (F5, docs/ARCHITECTURE.md §2.2 export).
 
 Produces a driver-facing sheet: ordered stops with address, order ref, time
-window, weight and phone. Excel handles Arabic addresses natively; the PDF uses
-Latin fonts (Arabic shaping in PDF is a documented follow-up).
+window, weight and phone. Excel handles Arabic addresses natively; the PDF
+reshapes Arabic (arabic-reshaper + python-bidi) and renders it with a bundled
+Unicode font (DejaVuSans, which covers Latin + Arabic presentation forms). Drop
+a Naskh font (Amiri / Noto Naskh Arabic, OFL) into assets/ for nicer glyphs —
+the code uses whatever font is registered; Latin is unaffected.
 """
 
 import io
 import uuid
+from pathlib import Path
 from typing import Any
 
+import arabic_reshaper
+from bidi.algorithm import get_display
 from openpyxl import Workbook
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from routeopt.models.delivery import Delivery
 from routeopt.models.route import Route
 
 _HEADERS = ["#", "Adresse", "Commande", "Fenêtre", "Poids (kg)", "Téléphone"]
+
+# Register a Unicode font covering Latin + Arabic; fall back to Helvetica if absent.
+_FONT_NAME = "Helvetica"
+_FONT_PATH = Path(__file__).resolve().parents[2] / "assets" / "DejaVuSans.ttf"
+if _FONT_PATH.exists():
+    try:
+        pdfmetrics.registerFont(TTFont("RouteOptSans", str(_FONT_PATH)))
+        _FONT_NAME = "RouteOptSans"
+    except Exception:  # pragma: no cover - font load is best-effort
+        _FONT_NAME = "Helvetica"
+
+
+def _is_arabic(text: str) -> bool:
+    return any(
+        "؀" <= c <= "ۿ"  # Arabic
+        or "ݐ" <= c <= "ݿ"  # Arabic Supplement
+        or "ﭐ" <= c <= "﷿"  # Presentation Forms-A
+        or "ﹰ" <= c <= "﻿"  # Presentation Forms-B
+        for c in text
+    )
+
+
+def _shape(text: str) -> str:
+    """Reshape + bidi-reorder Arabic for PDF rendering; leave Latin unchanged."""
+    if not text or not _is_arabic(text):
+        return text
+    return str(get_display(arabic_reshaper.reshape(text)))
 
 
 def _distance_label(route: Route) -> str:
@@ -76,8 +111,7 @@ def build_pdf(route: Route, deliveries: dict[uuid.UUID, Delivery]) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, title=f"Tournée {str(route.id)[:8]}")
     styles = getSampleStyleSheet()
-    cell = styles["BodyText"]
-    cell.fontSize = 8
+    cell = ParagraphStyle("cell", parent=styles["BodyText"], fontName=_FONT_NAME, fontSize=8)
 
     elements = [
         Paragraph("RouteOpt — Feuille de tournée", styles["Title"]),
@@ -88,9 +122,13 @@ def build_pdf(route: Route, deliveries: dict[uuid.UUID, Delivery]) -> bytes:
         Spacer(1, 0.5 * cm),
     ]
 
+    # Reshape Arabic cells for correct PDF rendering; Latin passes through unchanged.
     data: list[list[Any]] = [_HEADERS]
     for row in _rows(route, deliveries):
-        data.append([row[0], Paragraph(row[1], cell), row[2], row[3], row[4], row[5]])
+        shaped = [_shape(str(c)) for c in row]
+        data.append(
+            [shaped[0], Paragraph(shaped[1], cell), shaped[2], shaped[3], shaped[4], shaped[5]]
+        )
 
     table = Table(
         data,
@@ -102,6 +140,7 @@ def build_pdf(route: Route, deliveries: dict[uuid.UUID, Delivery]) -> bytes:
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563EB")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, -1), _FONT_NAME),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#D1D5DB")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
