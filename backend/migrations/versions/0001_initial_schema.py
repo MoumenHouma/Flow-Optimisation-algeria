@@ -12,9 +12,8 @@ Create Date: 2026-07-19
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
-
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0001_initial_schema"
 down_revision: str | None = None
@@ -46,7 +45,9 @@ def upgrade() -> None:
     op.create_table(
         "users",
         sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("email", sa.String(255), nullable=False),
         sa.Column("password_hash", sa.String(255), nullable=False),
         sa.Column("full_name", sa.String(255), nullable=False),
@@ -61,8 +62,15 @@ def upgrade() -> None:
         sa.UniqueConstraint("email", name="uq_users_email"),
         sa.CheckConstraint("role IN ('admin','manager','driver','viewer')", name="check_role"),
     )
-    op.create_index("idx_users_company", "users", ["company_id"], postgresql_where=sa.text("deleted_at IS NULL"))
-    op.create_index("idx_users_role", "users", ["company_id", "role"], postgresql_where=sa.text("deleted_at IS NULL"))
+    op.create_index(
+        "idx_users_company", "users", ["company_id"], postgresql_where=sa.text("deleted_at IS NULL")
+    )
+    op.create_index(
+        "idx_users_role",
+        "users",
+        ["company_id", "role"],
+        postgresql_where=sa.text("deleted_at IS NULL"),
+    )
 
     op.create_table(
         "refresh_tokens",
@@ -74,12 +82,19 @@ def upgrade() -> None:
         sa.Column("created_at", TS, nullable=False, server_default=sa.func.now()),
         sa.UniqueConstraint("token_hash", name="uq_refresh_tokens_hash"),
     )
-    op.create_index("idx_refresh_tokens_user", "refresh_tokens", ["user_id"], postgresql_where=sa.text("revoked_at IS NULL"))
+    op.create_index(
+        "idx_refresh_tokens_user",
+        "refresh_tokens",
+        ["user_id"],
+        postgresql_where=sa.text("revoked_at IS NULL"),
+    )
 
     op.create_table(
         "vehicles",
         sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("driver_user_id", UUID, sa.ForeignKey("users.id", ondelete="SET NULL")),
         sa.Column("name", sa.String(100), nullable=False),
         sa.Column("vehicle_type", sa.String(20), nullable=False, server_default="car"),
@@ -93,18 +108,27 @@ def upgrade() -> None:
         sa.Column("created_at", TS, nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", TS, nullable=False, server_default=sa.func.now()),
         sa.Column("deleted_at", TS, nullable=True),
-        sa.CheckConstraint("vehicle_type IN ('car','van','truck','motorcycle')", name="check_vehicle_type"),
+        sa.CheckConstraint(
+            "vehicle_type IN ('car','van','truck','motorcycle')", name="check_vehicle_type"
+        ),
         sa.CheckConstraint("capacity_weight >= 0", name="check_capacity_weight"),
         sa.CheckConstraint("capacity_volume >= 0", name="check_capacity_volume"),
         sa.CheckConstraint("depot_lat BETWEEN -90 AND 90", name="check_depot_lat"),
         sa.CheckConstraint("depot_lon BETWEEN -180 AND 180", name="check_depot_lon"),
     )
-    op.create_index("idx_vehicles_company", "vehicles", ["company_id"], postgresql_where=sa.text("deleted_at IS NULL"))
+    op.create_index(
+        "idx_vehicles_company",
+        "vehicles",
+        ["company_id"],
+        postgresql_where=sa.text("deleted_at IS NULL"),
+    )
 
     op.create_table(
         "optimization_jobs",
         sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("requested_by_user_id", UUID, sa.ForeignKey("users.id", ondelete="SET NULL")),
         sa.Column("trigger", sa.String(20), nullable=False, server_default="manual"),
         sa.Column("status", sa.String(50), nullable=False, server_default="pending"),
@@ -117,19 +141,29 @@ def upgrade() -> None:
         sa.Column("duration_ms", sa.Integer),
         sa.Column("created_at", TS, nullable=False, server_default=sa.func.now()),
         sa.Column("completed_at", TS),
-        sa.CheckConstraint("status IN ('pending','running','completed','failed')", name="check_job_status"),
-        sa.CheckConstraint("trigger IN ('manual','reoptimize','scheduled')", name="check_job_trigger"),
+        sa.CheckConstraint(
+            "status IN ('pending','running','completed','failed')", name="check_job_status"
+        ),
+        sa.CheckConstraint(
+            "trigger IN ('manual','reoptimize','scheduled')", name="check_job_trigger"
+        ),
     )
-    op.create_index("idx_optimization_jobs_company", "optimization_jobs", ["company_id", "created_at"])
+    op.create_index(
+        "idx_optimization_jobs_company", "optimization_jobs", ["company_id", "created_at"]
+    )
     op.create_index("idx_optimization_jobs_status", "optimization_jobs", ["status"])
     op.create_index("idx_optimization_jobs_input_hash", "optimization_jobs", ["input_hash"])
 
     op.create_table(
         "routes",
         sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("vehicle_id", UUID, sa.ForeignKey("vehicles.id", ondelete="SET NULL")),
-        sa.Column("optimization_job_id", UUID, sa.ForeignKey("optimization_jobs.id", ondelete="SET NULL")),
+        sa.Column(
+            "optimization_job_id", UUID, sa.ForeignKey("optimization_jobs.id", ondelete="SET NULL")
+        ),
         sa.Column("name", sa.String(100)),
         sa.Column("total_distance_m", sa.Numeric(10, 2)),
         sa.Column("total_time_s", sa.Integer),
@@ -144,13 +178,25 @@ def upgrade() -> None:
             name="check_route_status",
         ),
     )
-    op.create_index("idx_routes_company", "routes", ["company_id"], postgresql_where=sa.text("deleted_at IS NULL"))
-    op.create_index("idx_routes_vehicle", "routes", ["vehicle_id"], postgresql_where=sa.text("deleted_at IS NULL"))
+    op.create_index(
+        "idx_routes_company",
+        "routes",
+        ["company_id"],
+        postgresql_where=sa.text("deleted_at IS NULL"),
+    )
+    op.create_index(
+        "idx_routes_vehicle",
+        "routes",
+        ["vehicle_id"],
+        postgresql_where=sa.text("deleted_at IS NULL"),
+    )
 
     op.create_table(
         "deliveries",
         sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "company_id", UUID, sa.ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("route_id", UUID, sa.ForeignKey("routes.id", ondelete="SET NULL")),
         sa.Column("order_id", sa.String(100)),
         sa.Column("address", sa.Text, nullable=False),
@@ -172,7 +218,8 @@ def upgrade() -> None:
         sa.Column("deleted_at", TS, nullable=True),
         sa.CheckConstraint("priority IN (1,2,3)", name="check_priority"),
         sa.CheckConstraint(
-            "status IN ('pending','geocoded','assigned','en_route','delivered','failed','cancelled')",
+            "status IN ('pending','geocoded','assigned','en_route',"
+            "'delivered','failed','cancelled')",
             name="check_status",
         ),
         sa.CheckConstraint(
@@ -189,28 +236,38 @@ def upgrade() -> None:
             name="check_time_window",
         ),
     )
-    op.create_index("idx_deliveries_company_status", "deliveries", ["company_id", "status"], postgresql_where=sa.text("deleted_at IS NULL"))
-    op.create_index("idx_deliveries_route", "deliveries", ["route_id"], postgresql_where=sa.text("deleted_at IS NULL"))
+    op.create_index(
+        "idx_deliveries_company_status",
+        "deliveries",
+        ["company_id", "status"],
+        postgresql_where=sa.text("deleted_at IS NULL"),
+    )
+    op.create_index(
+        "idx_deliveries_route",
+        "deliveries",
+        ["route_id"],
+        postgresql_where=sa.text("deleted_at IS NULL"),
+    )
     op.create_index("idx_deliveries_order_id", "deliveries", ["company_id", "order_id"])
 
     # Generated geospatial column + GiST index (SCHEMA.md §5.1, §8.2)
-    op.execute(
-        """
+    op.execute("""
         ALTER TABLE deliveries ADD COLUMN geog GEOGRAPHY(POINT, 4326)
             GENERATED ALWAYS AS (
                 CASE WHEN lat IS NOT NULL AND lon IS NOT NULL
                      THEN ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography
                 END
             ) STORED
-        """
-    )
+        """)
     op.execute("CREATE INDEX idx_deliveries_geog ON deliveries USING GIST (geog)")
 
     op.create_table(
         "route_stops",
         sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("route_id", UUID, sa.ForeignKey("routes.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("delivery_id", UUID, sa.ForeignKey("deliveries.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "delivery_id", UUID, sa.ForeignKey("deliveries.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("sequence", sa.Integer, nullable=False),
         sa.Column("eta", TS),
         sa.Column("distance_from_previous_m", sa.Numeric(10, 2)),

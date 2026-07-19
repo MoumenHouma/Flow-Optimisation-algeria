@@ -10,9 +10,8 @@ Create Date: 2026-07-19
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
-
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0002_delivery_status_history"
 down_revision: str | None = "0001_initial_schema"
