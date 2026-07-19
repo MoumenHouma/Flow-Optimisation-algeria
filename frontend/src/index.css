@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+  @apply bg-neutral-50 font-sans text-neutral-900 antialiased;
+}
+
+/* RTL support for Arabic (docs/DESIGN.md §6) */
+[dir="rtl"] {
+  text-align: right;
+}

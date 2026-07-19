@@ -1,0 +1,85 @@
+# RouteOpt — local development stack (docs/ARCHITECTURE.md §7.1)
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-routeopt}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-routeopt}
+      POSTGRES_DB: ${POSTGRES_DB:-routeopt}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-routeopt}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  osrm:
+    image: osrm/osrm-backend:latest
+    # Requires prepared data: run ./infra/osrm/prepare.sh first.
+    command: >
+      osrm-routed /data/algeria-latest.osrm
+      --algorithm mld --max-table-size 10000
+    volumes:
+      - ./infra/osrm/data:/data
+    ports:
+      - "5000:5000"
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+    profiles: ["osrm"]   # opt-in: `docker compose --profile osrm up osrm`
+
+  backend:
+    build: ./backend
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  optimization-worker:
+    build: ./optimization-worker
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    env_file: .env
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  miniodata:
