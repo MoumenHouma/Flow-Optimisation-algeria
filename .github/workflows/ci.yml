@@ -13,6 +13,29 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: routeopt
+          POSTGRES_PASSWORD: routeopt
+          POSTGRES_DB: routeopt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U routeopt"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      # Enables the DB-backed integration tests (skipped when unset).
+      TEST_DATABASE_URL: postgresql+asyncpg://routeopt:routeopt@localhost:5432/routeopt
+      REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
