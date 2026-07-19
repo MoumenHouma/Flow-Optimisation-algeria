@@ -40,6 +40,9 @@ class RouteStopOut(BaseModel):
     delivery_id: str
     sequence: int
     eta: str | None = None
+    lat: float | None = None
+    lon: float | None = None
+    address: str | None = None
 
 
 class RouteOut(BaseModel):
@@ -48,4 +51,8 @@ class RouteOut(BaseModel):
     total_distance_m: float | None
     total_time_s: int | None
     status: str
+    depot: GeoPoint | None = None
+    # GeoJSON LineString of the road path when available (OSRM /route); the client
+    # falls back to straight lines between stops otherwise.
+    geometry: dict | None = None
     stops: list[RouteStopOut]

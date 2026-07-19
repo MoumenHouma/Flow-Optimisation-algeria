@@ -97,6 +97,14 @@ export interface RouteStop {
   delivery_id: string;
   sequence: number;
   eta?: string;
+  lat?: number | null;
+  lon?: number | null;
+  address?: string | null;
+}
+
+export interface LineStringGeometry {
+  type: "LineString";
+  coordinates: [number, number][]; // [lon, lat]
 }
 
 export interface RouteResult {
@@ -105,6 +113,8 @@ export interface RouteResult {
   total_distance_m?: number;
   total_time_s?: number;
   status: string;
+  depot?: GeoPoint | null;
+  geometry?: LineStringGeometry | null;
   stops: RouteStop[];
 }
 

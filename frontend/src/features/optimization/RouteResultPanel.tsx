@@ -1,9 +1,21 @@
-import { useRoute } from "@/api/optimization";
-import { formatKm } from "@/lib/format";
-import type { JobResult } from "@/types";
+import { useQueries } from "@tanstack/react-query";
 
-// Renders the optimized result summary + per-route stop list (docs/DESIGN.md §3.3).
+import { RouteMap } from "@/components/RouteMap";
+import { apiFetch } from "@/lib/api-client";
+import { formatKm } from "@/lib/format";
+import { routeColor } from "@/lib/route-colors";
+import type { JobResult, RouteResult } from "@/types";
+
+// Optimized-result view: summary + map + per-route stop lists (docs/DESIGN.md §3.3).
 export function RouteResultPanel({ job }: { job: JobResult }) {
+  const results = useQueries({
+    queries: job.route_ids.map((id) => ({
+      queryKey: ["route", id],
+      queryFn: () => apiFetch<RouteResult>(`/api/v1/routes/${id}`),
+    })),
+  });
+  const routes = results.flatMap((r) => (r.data ? [r.data] : []));
+
   return (
     <section className="mt-6">
       <div className="rounded-lg border border-green-200 bg-green-50 p-4">
@@ -15,36 +27,46 @@ export function RouteResultPanel({ job }: { job: JobResult }) {
         </dl>
       </div>
 
+      {routes.length > 0 && (
+        <div className="mt-4 h-80 overflow-hidden rounded-lg border border-neutral-200">
+          <RouteMap routes={routes} />
+        </div>
+      )}
+
       <div className="mt-4 space-y-4">
-        {job.route_ids.map((id, index) => (
-          <RouteCard key={id} routeId={id} index={index} />
+        {routes.map((route, index) => (
+          <RouteCard key={route.id} route={route} index={index} />
         ))}
       </div>
     </section>
   );
 }
 
-function RouteCard({ routeId, index }: { routeId: string; index: number }) {
-  const route = useRoute(routeId);
-  if (!route.data) {
-    return <div className="h-20 animate-pulse rounded-lg bg-neutral-100" />;
-  }
+function RouteCard({ route, index }: { route: RouteResult; index: number }) {
   return (
     <article className="rounded-lg border border-neutral-200 bg-white p-4">
       <header className="flex items-center justify-between">
-        <h3 className="font-semibold">🚐 Véhicule {index + 1}</h3>
+        <h3 className="flex items-center gap-2 font-semibold">
+          <span
+            className="inline-block h-3 w-3 rounded-full"
+            style={{ backgroundColor: routeColor(index) }}
+            aria-hidden="true"
+          />
+          🚐 Véhicule {index + 1}
+        </h3>
         <span className="font-mono text-sm text-neutral-500">
-          {formatKm(route.data.total_distance_m)} · {route.data.stops.length} arrêts
+          {formatKm(route.total_distance_m)} · {route.stops.length} arrêts
         </span>
       </header>
       <ol className="mt-3 space-y-1 text-sm">
-        {route.data.stops.map((stop) => (
+        {route.stops.map((stop) => (
           <li key={stop.delivery_id} className="flex items-center gap-3">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-light font-mono text-xs text-primary-dark">
               {stop.sequence + 1}
             </span>
-            <span className="text-neutral-700">{stop.delivery_id.slice(0, 8)}…</span>
-            {stop.eta && <span className="text-neutral-400">{stop.eta}</span>}
+            <span className="text-neutral-700">
+              {stop.address ?? `${stop.delivery_id.slice(0, 8)}…`}
+            </span>
           </li>
         ))}
       </ol>

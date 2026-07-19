@@ -15,7 +15,7 @@ from routeopt.modules.routes.schemas import (
     RouteStopOut,
 )
 from routeopt.modules.routes.service import RoutesService
-from routeopt.schemas.common import JobStatus
+from routeopt.schemas.common import GeoPoint, JobStatus
 
 router = APIRouter(prefix="/routes", tags=["routes"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -67,7 +67,28 @@ async def get_route(
     session: SessionDep,
     user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> RouteOut:
-    route = await RoutesService(session).get_route(user.company_id, route_id)
+    route, deliveries, depot = await RoutesService(session).get_route_detail(
+        user.company_id, route_id
+    )
+    stops = [
+        RouteStopOut(
+            delivery_id=str(s.delivery_id),
+            sequence=s.sequence,
+            eta=s.eta.isoformat() if s.eta else None,
+            lat=(
+                float(deliveries[s.delivery_id].lat)
+                if deliveries.get(s.delivery_id) and deliveries[s.delivery_id].lat is not None
+                else None
+            ),
+            lon=(
+                float(deliveries[s.delivery_id].lon)
+                if deliveries.get(s.delivery_id) and deliveries[s.delivery_id].lon is not None
+                else None
+            ),
+            address=deliveries[s.delivery_id].address if deliveries.get(s.delivery_id) else None,
+        )
+        for s in route.stops
+    ]
     return RouteOut(
         id=str(route.id),
         vehicle_id=str(route.vehicle_id) if route.vehicle_id else None,
@@ -76,12 +97,7 @@ async def get_route(
         ),
         total_time_s=route.total_time_s,
         status=route.status,
-        stops=[
-            RouteStopOut(
-                delivery_id=str(s.delivery_id),
-                sequence=s.sequence,
-                eta=s.eta.isoformat() if s.eta else None,
-            )
-            for s in route.stops
-        ],
+        depot=GeoPoint(**depot) if depot else None,
+        geometry=route.geometry,
+        stops=stops,
     )

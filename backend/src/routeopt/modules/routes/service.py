@@ -124,6 +124,25 @@ class RoutesService:
         await self.session.refresh(route, attribute_names=["stops"])
         return route
 
+    async def get_route_detail(
+        self, company_id: str, route_id: str
+    ) -> tuple[Route, dict[uuid.UUID, Delivery], dict | None]:
+        """Return (route, deliveries_by_id, depot) — enough to draw the route on a map."""
+        route = await self.get_route(company_id, route_id)
+
+        ids = [s.delivery_id for s in route.stops]
+        deliveries_by_id: dict[uuid.UUID, Delivery] = {}
+        if ids:
+            rows = await self.session.scalars(select(Delivery).where(Delivery.id.in_(ids)))
+            deliveries_by_id = {d.id: d for d in rows}
+
+        depot: dict | None = None
+        if route.vehicle_id is not None:
+            vehicle = await self.session.get(Vehicle, route.vehicle_id)
+            if vehicle is not None:
+                depot = {"lat": float(vehicle.depot_lat), "lon": float(vehicle.depot_lon)}
+        return route, deliveries_by_id, depot
+
     async def persist_result(self, message: dict) -> None:
         """Persist a worker result message (idempotent: pending/running only)."""
         job = await self.session.get(OptimizationJob, uuid.UUID(message["job_id"]))

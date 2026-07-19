@@ -148,9 +148,13 @@ async def test_full_optimize_flow(client: AsyncClient, fake_redis) -> None:
     # Fetch the route with its ordered stops
     route = await client.get(f"/api/v1/routes/{body['route_ids'][0]}", headers=headers)
     assert route.status_code == 200, route.text
-    stops = route.json()["stops"]
+    route_body = route.json()
+    stops = route_body["stops"]
     assert [s["sequence"] for s in stops] == [0, 1]
     assert {s["delivery_id"] for s in stops} == set(delivery_ids)
+    # Enriched for the map: each stop carries coordinates + the route has a depot
+    assert all(s["lat"] is not None and s["lon"] is not None for s in stops)
+    assert route_body["depot"] == {"lat": 36.7538, "lon": 3.0588}
 
     # Deliveries are no longer routable (now assigned to the route)
     routable = await client.get("/api/v1/orders", headers=headers)
