@@ -49,16 +49,35 @@ export interface BulkCreateResponse {
   deliveries: Delivery[];
 }
 
+export type VehicleType = "car" | "van" | "truck" | "motorcycle";
+
 export interface Vehicle {
   id: string;
   name: string;
-  vehicle_type: "car" | "van" | "truck" | "motorcycle";
+  vehicle_type: VehicleType;
   license_plate?: string;
   capacity_weight: number;
   capacity_volume: number;
   depot: GeoPoint;
   depot_address: string;
   active: boolean;
+}
+
+// Payload for POST/PUT /fleet/vehicles.
+export interface VehicleDraft {
+  name: string;
+  vehicle_type: VehicleType;
+  license_plate?: string;
+  capacity_weight: number;
+  capacity_volume: number;
+  depot: GeoPoint;
+  depot_address: string;
+}
+
+export interface FleetSummary {
+  plan: string;
+  vehicle_count: number;
+  max_vehicles: number | null; // null => unlimited (Enterprise)
 }
 
 export interface RouteStop {

@@ -2,16 +2,25 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.dependencies import CurrentUser, get_current_user, require_roles
 from routeopt.database import get_session
-from routeopt.modules.fleet.schemas import VehicleIn, VehicleOut
+from routeopt.modules.fleet.schemas import FleetSummary, VehicleIn, VehicleOut
 from routeopt.modules.fleet.service import FleetService
 
 router = APIRouter(prefix="/fleet", tags=["fleet"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+ManagerDep = Annotated[CurrentUser, Depends(require_roles("admin", "manager"))]
+
+
+@router.get("/summary", response_model=FleetSummary)
+async def fleet_summary(
+    session: SessionDep,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> FleetSummary:
+    return await FleetService(session).summary(user.company_id)
 
 
 @router.get("/vehicles", response_model=list[VehicleOut])
@@ -24,10 +33,19 @@ async def list_vehicles(
 
 
 @router.post("/vehicles", response_model=VehicleOut, status_code=201)
-async def add_vehicle(
-    payload: VehicleIn,
-    session: SessionDep,
-    user: Annotated[CurrentUser, Depends(require_roles("admin", "manager"))],
-) -> VehicleOut:
+async def add_vehicle(payload: VehicleIn, session: SessionDep, user: ManagerDep) -> VehicleOut:
     vehicle = await FleetService(session).add_vehicle(user.company_id, payload)
     return VehicleOut.from_model(vehicle)
+
+
+@router.put("/vehicles/{vehicle_id}", response_model=VehicleOut)
+async def update_vehicle(
+    vehicle_id: str, payload: VehicleIn, session: SessionDep, user: ManagerDep
+) -> VehicleOut:
+    vehicle = await FleetService(session).update_vehicle(user.company_id, vehicle_id, payload)
+    return VehicleOut.from_model(vehicle)
+
+
+@router.delete("/vehicles/{vehicle_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_vehicle(vehicle_id: str, session: SessionDep, user: ManagerDep) -> None:
+    await FleetService(session).delete_vehicle(user.company_id, vehicle_id)

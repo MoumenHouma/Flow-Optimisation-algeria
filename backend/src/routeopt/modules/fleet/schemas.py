@@ -14,6 +14,12 @@ class VehicleIn(BaseModel):
     driver_user_id: str | None = None
 
 
+class FleetSummary(BaseModel):
+    plan: str
+    vehicle_count: int
+    max_vehicles: int | None  # None => unlimited (Enterprise)
+
+
 class VehicleOut(BaseModel):
     id: str
     name: str

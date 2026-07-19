@@ -1,6 +1,7 @@
 """Fleet logic: vehicle CRUD with plan-quota enforcement (SCHEMA §3.1)."""
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from routeopt.core.exceptions import ConflictError, NotFoundError
 from routeopt.models.company import Company
 from routeopt.models.vehicle import Vehicle
-from routeopt.modules.fleet.schemas import VehicleIn
+from routeopt.modules.fleet.schemas import FleetSummary, VehicleIn
 
 
 class FleetService:
@@ -43,18 +44,65 @@ class FleetService:
         await self.session.refresh(vehicle)
         return vehicle
 
+    async def update_vehicle(self, company_id: str, vehicle_id: str, payload: VehicleIn) -> Vehicle:
+        vehicle = await self._get_scoped(company_id, vehicle_id)
+        vehicle.name = payload.name
+        vehicle.vehicle_type = payload.vehicle_type
+        vehicle.license_plate = payload.license_plate
+        vehicle.capacity_weight = payload.capacity_weight
+        vehicle.capacity_volume = payload.capacity_volume
+        vehicle.depot_lat = payload.depot.lat
+        vehicle.depot_lon = payload.depot.lon
+        vehicle.depot_address = payload.depot_address
+        vehicle.driver_user_id = (
+            uuid.UUID(payload.driver_user_id) if payload.driver_user_id else None
+        )
+        await self.session.commit()
+        await self.session.refresh(vehicle)
+        return vehicle
+
+    async def delete_vehicle(self, company_id: str, vehicle_id: str) -> None:
+        vehicle = await self._get_scoped(company_id, vehicle_id)
+        vehicle.deleted_at = datetime.now(UTC)  # soft delete (RULES §2.4)
+        vehicle.active = False
+        await self.session.commit()
+
+    async def summary(self, company_id: str) -> FleetSummary:
+        company = await self.session.get(Company, uuid.UUID(company_id))
+        if company is None:
+            raise NotFoundError("Company not found")
+        count = await self._active_count(company_id)
+        return FleetSummary(
+            plan=company.plan,
+            vehicle_count=count,
+            max_vehicles=company.max_vehicles,
+        )
+
+    async def _get_scoped(self, company_id: str, vehicle_id: str) -> Vehicle:
+        vehicle = await self.session.get(Vehicle, uuid.UUID(vehicle_id))
+        if (
+            vehicle is None
+            or str(vehicle.company_id) != company_id
+            or vehicle.deleted_at is not None
+        ):
+            raise NotFoundError("Vehicle not found")
+        return vehicle
+
+    async def _active_count(self, company_id: str) -> int:
+        count = await self.session.scalar(
+            select(func.count())
+            .select_from(Vehicle)
+            .where(Vehicle.company_id == uuid.UUID(company_id), Vehicle.deleted_at.is_(None))
+        )
+        return count or 0
+
     async def _enforce_quota(self, company_id: str) -> None:
         company = await self.session.get(Company, uuid.UUID(company_id))
         if company is None:
             raise NotFoundError("Company not found")
         if company.max_vehicles is None:  # unlimited (Enterprise)
             return
-        count = await self.session.scalar(
-            select(func.count())
-            .select_from(Vehicle)
-            .where(Vehicle.company_id == uuid.UUID(company_id), Vehicle.deleted_at.is_(None))
-        )
-        if count is not None and count >= company.max_vehicles:
+        if await self._active_count(company_id) >= company.max_vehicles:
             raise ConflictError(
                 f"Vehicle quota reached for plan '{company.plan}' ({company.max_vehicles})"
             )
