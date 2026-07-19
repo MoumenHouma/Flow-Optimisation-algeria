@@ -156,6 +156,20 @@ async def test_full_optimize_flow(client: AsyncClient, fake_redis) -> None:
     assert all(s["lat"] is not None and s["lon"] is not None for s in stops)
     assert route_body["depot"] == {"lat": 36.7538, "lon": 3.0588}
 
+    # Export the route sheet (F5)
+    rid = body["route_ids"][0]
+    xlsx = await client.get(f"/api/v1/routes/{rid}/export?format=xlsx", headers=headers)
+    assert xlsx.status_code == 200
+    assert xlsx.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "attachment" in xlsx.headers["content-disposition"]
+    assert xlsx.content[:2] == b"PK"
+
+    pdf = await client.get(f"/api/v1/routes/{rid}/export?format=pdf", headers=headers)
+    assert pdf.status_code == 200
+    assert pdf.content[:5] == b"%PDF-"
+
     # Deliveries are no longer routable (now assigned to the route)
     routable = await client.get("/api/v1/orders", headers=headers)
     assert routable.json() == []

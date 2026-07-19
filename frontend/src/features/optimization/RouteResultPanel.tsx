@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useQueries } from "@tanstack/react-query";
+import { FileText, Sheet } from "lucide-react";
 
 import { RouteMap } from "@/components/RouteMap";
 import { apiFetch } from "@/lib/api-client";
+import { downloadRouteExport } from "@/lib/downloads";
 import { formatKm } from "@/lib/format";
 import { routeColor } from "@/lib/route-colors";
 import type { JobResult, RouteResult } from "@/types";
@@ -43,9 +46,20 @@ export function RouteResultPanel({ job }: { job: JobResult }) {
 }
 
 function RouteCard({ route, index }: { route: RouteResult; index: number }) {
+  const [downloading, setDownloading] = useState<"pdf" | "xlsx" | null>(null);
+
+  const download = async (format: "pdf" | "xlsx") => {
+    setDownloading(format);
+    try {
+      await downloadRouteExport(route.id, format);
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   return (
     <article className="rounded-lg border border-neutral-200 bg-white p-4">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 font-semibold">
           <span
             className="inline-block h-3 w-3 rounded-full"
@@ -54,9 +68,25 @@ function RouteCard({ route, index }: { route: RouteResult; index: number }) {
           />
           🚐 Véhicule {index + 1}
         </h3>
-        <span className="font-mono text-sm text-neutral-500">
-          {formatKm(route.total_distance_m)} · {route.stops.length} arrêts
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm text-neutral-500">
+            {formatKm(route.total_distance_m)} · {route.stops.length} arrêts
+          </span>
+          <button
+            onClick={() => download("pdf")}
+            disabled={downloading !== null}
+            className="inline-flex items-center gap-1 rounded-lg border border-neutral-300 px-2 py-1 text-xs font-medium hover:bg-neutral-50 disabled:opacity-50"
+          >
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" /> PDF
+          </button>
+          <button
+            onClick={() => download("xlsx")}
+            disabled={downloading !== null}
+            className="inline-flex items-center gap-1 rounded-lg border border-neutral-300 px-2 py-1 text-xs font-medium hover:bg-neutral-50 disabled:opacity-50"
+          >
+            <Sheet className="h-3.5 w-3.5" aria-hidden="true" /> Excel
+          </button>
+        </div>
       </header>
       <ol className="mt-3 space-y-1 text-sm">
         {route.stops.map((stop) => (

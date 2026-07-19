@@ -2,11 +2,12 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.dependencies import CurrentUser, get_current_user, rate_limiter, require_roles
 from routeopt.database import get_session
+from routeopt.modules.routes.export import build_excel, build_pdf
 from routeopt.modules.routes.schemas import (
     JobOut,
     OptimizeRequest,
@@ -19,6 +20,11 @@ from routeopt.schemas.common import GeoPoint, JobStatus
 
 router = APIRouter(prefix="/routes", tags=["routes"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+_EXPORT_MEDIA = {
+    "pdf": "application/pdf",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 
 
 @router.post("/optimize", response_model=OptimizeResponse, status_code=202)
@@ -100,4 +106,22 @@ async def get_route(
         depot=GeoPoint(**depot) if depot else None,
         geometry=route.geometry,
         stops=stops,
+    )
+
+
+@router.get("/{route_id}/export")
+async def export_route(
+    route_id: str,
+    session: SessionDep,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    format: Annotated[str, Query(pattern="^(pdf|xlsx)$")] = "pdf",
+) -> Response:
+    """Export a route's stop sheet as PDF or Excel (F5)."""
+    route, deliveries, _ = await RoutesService(session).get_route_detail(user.company_id, route_id)
+    content = build_excel(route, deliveries) if format == "xlsx" else build_pdf(route, deliveries)
+    filename = f"tournee-{str(route.id)[:8]}.{format}"
+    return Response(
+        content=content,
+        media_type=_EXPORT_MEDIA[format],
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
