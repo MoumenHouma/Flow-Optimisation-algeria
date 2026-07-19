@@ -16,3 +16,11 @@ def test_health_ok() -> None:
 def test_optimize_requires_auth() -> None:
     response = client.post("/api/v1/routes/optimize", json={})
     assert response.status_code in (401, 422)
+
+
+def test_readiness_reports_components() -> None:
+    # Without live deps this returns 503, but always reports each component.
+    response = client.get("/health/ready")
+    assert response.status_code in (200, 503)
+    body = response.json()
+    assert set(body["components"]) == {"database", "redis", "osrm"}

@@ -23,12 +23,18 @@ Le schéma complet est normatif dans [`docs/SCHEMA.md`](./docs/SCHEMA.md).
 ```bash
 cp .env.example .env
 docker compose up -d postgres redis minio        # data layer
-# Préparer OSRM (une fois, ~8-16 GB RAM) :
-./infra/osrm/prepare.sh
-docker compose up -d osrm
+
+# Préparer OSRM (une fois, ~8-16 GB RAM pour l'Algérie) :
+./infra/osrm/prepare.sh                           # ou: REGION=monaco CONTINENT=europe ./infra/osrm/prepare.sh
+docker compose --profile osrm up -d osrm          # OSRM_FILE dans .env doit matcher la région
+
 # Backend + worker + frontend :
 docker compose up --build
 ```
+
+> Sans OSRM, l'optimisation fonctionne quand même : le worker retombe sur une
+> approximation à vol d'oiseau (résultat marqué `is_suboptimal`, PRD §4.3).
+> Vérifier la connectivité : `GET /health/ready` (rapporte database / redis / osrm).
 
 - API : http://localhost:8000 — docs Swagger : http://localhost:8000/docs
 - Frontend : http://localhost:5173

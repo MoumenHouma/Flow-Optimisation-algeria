@@ -41,8 +41,9 @@ services:
   osrm:
     image: osrm/osrm-backend:latest
     # Requires prepared data: run ./infra/osrm/prepare.sh first.
+    # OSRM_FILE must match the region you prepared (default: algeria-latest.osrm).
     command: >
-      osrm-routed /data/algeria-latest.osrm
+      osrm-routed /data/${OSRM_FILE:-algeria-latest.osrm}
       --algorithm mld --max-table-size 10000
     volumes:
       - ./infra/osrm/data:/data
@@ -52,6 +53,11 @@ services:
       resources:
         limits:
           memory: 16G
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:5000/table/v1/driving/3.06,36.75;3.07,36.76' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     profiles: ["osrm"]   # opt-in: `docker compose --profile osrm up osrm`
 
   backend:

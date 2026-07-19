@@ -1,7 +1,8 @@
 """Distance matrix builder via OSRM /table with Redis caching.
 
 Cache key is a hash of the ordered coordinates (docs/SCHEMA.md §7, dm:{hash},
-TTL 24h). Falls back to recompute on cache miss (ARCHITECTURE §4.2 L4).
+TTL 24h). Falls back to a great-circle approximation when OSRM is unreachable or
+returns an error (ARCHITECTURE §2.4, PRD §4.3).
 """
 
 from __future__ import annotations
@@ -24,8 +25,12 @@ _FALLBACK_SPEED_MPS = 8.33
 _EARTH_RADIUS_M = 6_371_000
 
 
-class OSRMTimeoutError(Exception):
-    pass
+class OSRMError(Exception):
+    """OSRM was reachable but returned an unusable response."""
+
+
+class OSRMTimeoutError(OSRMError):
+    """OSRM did not respond in time."""
 
 
 @dataclass
@@ -44,8 +49,13 @@ async def build_distance_matrix(
     redis_client: redis.Redis,
     osrm_url: str | None = None,
 ) -> DistanceMatrix:
-    """Build an NxN duration+distance matrix, caching the result in Redis."""
-    osrm_url = osrm_url or settings.osrm_url
+    """Build an NxN duration+distance matrix from OSRM /table, caching the result.
+
+    Raises OSRMError (incl. OSRMTimeoutError) on any transport/protocol failure so
+    the caller can fall back. Unroutable cells (OSRM returns ``null``) are
+    backfilled with a great-circle estimate rather than failing the whole matrix.
+    """
+    osrm_url = (osrm_url or settings.osrm_url).rstrip("/")
     cache_key = f"dm:{_coords_hash(points)}"
 
     cached = await redis_client.get(cache_key)
@@ -53,7 +63,7 @@ async def build_distance_matrix(
         data = json.loads(cached)
         return DistanceMatrix(durations=data["durations"], distances=data["distances"])
 
-    coords = ";".join(f"{p.lon},{p.lat}" for p in points)  # OSRM is lon,lat
+    coords = ";".join(f"{p.lon},{p.lat}" for p in points)  # OSRM expects lon,lat
     url = f"{osrm_url}/table/v1/driving/{coords}"
     params = {"annotations": "duration,distance"}
 
@@ -61,17 +71,44 @@ async def build_distance_matrix(
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(url, params=params)
             resp.raise_for_status()
-    except httpx.TimeoutException as exc:  # pragma: no cover
-        raise OSRMTimeoutError(f"OSRM table request timed out for {len(points)} points") from exc
+    except httpx.TimeoutException as exc:
+        raise OSRMTimeoutError(f"OSRM timed out for {len(points)} points") from exc
+    except httpx.HTTPError as exc:
+        raise OSRMError(f"OSRM request failed: {exc}") from exc
 
     body = resp.json()
-    matrix = DistanceMatrix(durations=body["durations"], distances=body["distances"])
+    if body.get("code") != "Ok":
+        raise OSRMError(f"OSRM returned code={body.get('code')!r}")
+    if "durations" not in body or "distances" not in body:
+        raise OSRMError("OSRM response missing durations/distances")
+
+    matrix = DistanceMatrix(
+        durations=_backfill_nulls(body["durations"], points, is_distance=False),
+        distances=_backfill_nulls(body["distances"], points, is_distance=True),
+    )
     await redis_client.set(
         cache_key,
         json.dumps({"durations": matrix.durations, "distances": matrix.distances}),
         ex=settings.distance_matrix_ttl_s,
     )
     return matrix
+
+
+def _backfill_nulls(
+    matrix: list[list[float | None]], points: list[GeoPoint], *, is_distance: bool
+) -> list[list[float]]:
+    """Replace OSRM ``null`` entries (unroutable pairs) with a great-circle estimate."""
+    out: list[list[float]] = []
+    for i, row in enumerate(matrix):
+        filled: list[float] = []
+        for j, value in enumerate(row):
+            if value is not None:
+                filled.append(float(value))
+            else:
+                d = _haversine_m(points[i], points[j])
+                filled.append(d if is_distance else d / _FALLBACK_SPEED_MPS)
+        out.append(filled)
+    return out
 
 
 def _haversine_m(a: GeoPoint, b: GeoPoint) -> float:
@@ -107,5 +144,18 @@ async def build_matrix_with_fallback(
     """Return (matrix, used_osrm). Falls back to haversine on any OSRM failure."""
     try:
         return await build_distance_matrix(points, redis_client, osrm_url), True
-    except Exception:  # noqa: BLE001 - OSRM down/unreachable/timeout -> approximate
+    except Exception:  # noqa: BLE001 - OSRM down/unreachable/error -> approximate
         return haversine_matrix(points), False
+
+
+async def osrm_healthy(osrm_url: str | None = None, timeout: float = 5.0) -> bool:
+    """Cheap OSRM reachability probe (two dummy points near Alger)."""
+    osrm_url = (osrm_url or settings.osrm_url).rstrip("/")
+    url = f"{osrm_url}/table/v1/driving/3.0588,36.7538;3.06,36.75"
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            return resp.json().get("code") == "Ok"
+    except (httpx.HTTPError, ValueError):
+        return False
