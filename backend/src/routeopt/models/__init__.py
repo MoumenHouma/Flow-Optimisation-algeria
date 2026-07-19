@@ -8,6 +8,7 @@ audit_log, refresh_tokens) are documented in SCHEMA.md and added as features lan
 from routeopt.models.base import Base
 from routeopt.models.company import Company
 from routeopt.models.delivery import Delivery
+from routeopt.models.delivery_status_history import DeliveryStatusHistory
 from routeopt.models.optimization_job import OptimizationJob
 from routeopt.models.refresh_token import RefreshToken
 from routeopt.models.route import Route, RouteStop
@@ -18,6 +19,7 @@ __all__ = [
     "Base",
     "Company",
     "Delivery",
+    "DeliveryStatusHistory",
     "OptimizationJob",
     "RefreshToken",
     "Route",

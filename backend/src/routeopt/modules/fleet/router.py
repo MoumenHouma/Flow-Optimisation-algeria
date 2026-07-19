@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.dependencies import CurrentUser, get_current_user, require_roles
 from routeopt.database import get_session
-from routeopt.modules.fleet.schemas import FleetSummary, VehicleIn, VehicleOut
+from routeopt.modules.fleet.schemas import (
+    DriverIn,
+    DriverOut,
+    FleetSummary,
+    VehicleIn,
+    VehicleOut,
+)
 from routeopt.modules.fleet.service import FleetService
 
 router = APIRouter(prefix="/fleet", tags=["fleet"])
@@ -36,6 +42,13 @@ async def list_vehicles(
 async def add_vehicle(payload: VehicleIn, session: SessionDep, user: ManagerDep) -> VehicleOut:
     vehicle = await FleetService(session).add_vehicle(user.company_id, payload)
     return VehicleOut.from_model(vehicle)
+
+
+@router.post("/drivers", response_model=DriverOut, status_code=201)
+async def create_driver(payload: DriverIn, session: SessionDep, user: ManagerDep) -> DriverOut:
+    """Create a driver login (F8). Assign to a vehicle via its driver_user_id."""
+    driver = await FleetService(session).create_driver(user.company_id, payload)
+    return DriverOut.from_model(driver)
 
 
 @router.put("/vehicles/{vehicle_id}", response_model=VehicleOut)

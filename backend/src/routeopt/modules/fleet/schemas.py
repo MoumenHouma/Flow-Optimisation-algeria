@@ -22,6 +22,24 @@ class FleetSummary(BaseModel):
     max_vehicles: int | None  # None => unlimited (Enterprise)
 
 
+class DriverIn(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=8)
+    full_name: str = Field(..., min_length=1, max_length=255)
+    phone: str | None = None
+
+
+class DriverOut(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    role: str
+
+    @classmethod
+    def from_model(cls, u: Any) -> "DriverOut":
+        return cls(id=str(u.id), email=u.email, full_name=u.full_name, role=u.role)
+
+
 class VehicleOut(BaseModel):
     id: str
     name: str

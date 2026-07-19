@@ -4,12 +4,15 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.exceptions import ConflictError, NotFoundError
+from routeopt.core.security import hash_password
 from routeopt.models.company import Company
+from routeopt.models.user import User
 from routeopt.models.vehicle import Vehicle
-from routeopt.modules.fleet.schemas import FleetSummary, VehicleIn
+from routeopt.modules.fleet.schemas import DriverIn, FleetSummary, VehicleIn
 
 
 class FleetService:
@@ -66,6 +69,25 @@ class FleetService:
         vehicle.deleted_at = datetime.now(UTC)  # soft delete (RULES §2.4)
         vehicle.active = False
         await self.session.commit()
+
+    async def create_driver(self, company_id: str, payload: DriverIn) -> User:
+        """Create a role=driver login so a manager can onboard + assign drivers (F8)."""
+        driver = User(
+            company_id=uuid.UUID(company_id),
+            email=payload.email.lower(),
+            password_hash=hash_password(payload.password),
+            full_name=payload.full_name,
+            phone=payload.phone,
+            role="driver",
+        )
+        self.session.add(driver)
+        try:
+            await self.session.commit()
+        except IntegrityError as exc:
+            await self.session.rollback()
+            raise ConflictError("Email already registered") from exc
+        await self.session.refresh(driver)
+        return driver
 
     async def summary(self, company_id: str) -> FleetSummary:
         company = await self.session.get(Company, uuid.UUID(company_id))

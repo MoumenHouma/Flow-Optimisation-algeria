@@ -80,6 +80,27 @@ export interface FleetSummary {
   max_vehicles: number | null; // null => unlimited (Enterprise)
 }
 
+export interface DriverStop {
+  delivery_id: string;
+  sequence: number;
+  address: string;
+  lat: number | null;
+  lon: number | null;
+  customer_phone: string | null;
+  time_window_start: string | null;
+  time_window_end: string | null;
+  status: DeliveryStatus;
+}
+
+export interface DriverRoute {
+  route_id: string;
+  vehicle_name: string | null;
+  total_distance_m: number | null;
+  delivered: number;
+  total: number;
+  stops: DriverStop[];
+}
+
 export interface DashboardSummary {
   date: string;
   deliveries_total: number;

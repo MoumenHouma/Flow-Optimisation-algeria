@@ -16,6 +16,7 @@ from routeopt.core.middleware import register_middleware
 from routeopt.database import get_session
 from routeopt.modules.auth.router import router as auth_router
 from routeopt.modules.dashboard.router import router as dashboard_router
+from routeopt.modules.driver.router import router as driver_router
 from routeopt.modules.fleet.router import router as fleet_router
 from routeopt.modules.orders.router import router as orders_router
 from routeopt.modules.routes.router import router as routes_router
@@ -44,6 +45,7 @@ app.include_router(orders_router, prefix="/api/v1")
 app.include_router(fleet_router, prefix="/api/v1")
 app.include_router(routes_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
+app.include_router(driver_router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["health"])

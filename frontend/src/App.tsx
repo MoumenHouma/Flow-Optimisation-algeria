@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { DriverPage } from "@/features/driver/DriverPage";
 import { OptimizationPage } from "@/features/optimization/OptimizationPage";
 import { ImportPage } from "@/features/import/ImportPage";
 import { FleetPage } from "@/features/fleet/FleetPage";
@@ -28,6 +29,16 @@ export default function App() {
         <Route path="/optimize" element={<OptimizationPage />} />
         <Route path="/fleet" element={<FleetPage />} />
       </Route>
+
+      {/* Driver PWA (F8) — mobile, its own shell, outside the manager layout. */}
+      <Route
+        path="/driver"
+        element={
+          <ProtectedRoute>
+            <DriverPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
