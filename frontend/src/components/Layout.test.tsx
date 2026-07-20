@@ -15,6 +15,7 @@ describe("Layout", () => {
     expect(screen.getByRole("link", { name: /importer/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /optimiser/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /flotte/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /analytics/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /déconnexion/i })).toBeInTheDocument();
   });
 });

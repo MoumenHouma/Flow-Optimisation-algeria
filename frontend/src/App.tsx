@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/import" element={<ImportPage />} />
         <Route path="/optimize" element={<OptimizationPage />} />
         <Route path="/fleet" element={<FleetPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
       </Route>
 
       {/* Driver PWA (F8) — mobile, its own shell, outside the manager layout. */}

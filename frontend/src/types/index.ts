@@ -104,6 +104,43 @@ export interface ProofOfDelivery {
   captured_at: string;
 }
 
+export interface TrendPoint {
+  date: string;
+  deliveries_completed: number;
+  deliveries_failed: number;
+  routes: number;
+  distance_m: number;
+}
+
+export interface Trends {
+  days: number;
+  points: TrendPoint[];
+}
+
+export interface FailureReason {
+  reason: string;
+  count: number;
+}
+
+export interface DriverStat {
+  driver_id: string;
+  driver_name: string;
+  delivered: number;
+  failed: number;
+}
+
+export interface Performance {
+  range_days: number;
+  delivered: number;
+  failed: number;
+  success_rate: number;
+  total_distance_m: number;
+  routes: number;
+  avg_distance_per_route_m: number;
+  failure_reasons: FailureReason[];
+  drivers: DriverStat[];
+}
+
 export interface DashboardSummary {
   date: string;
   deliveries_total: number;

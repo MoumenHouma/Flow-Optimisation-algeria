@@ -1,4 +1,12 @@
-import { LayoutDashboard, Upload, Navigation, Truck, LogOut, Languages } from "lucide-react";
+import {
+  LayoutDashboard,
+  Upload,
+  Navigation,
+  Truck,
+  BarChart3,
+  LogOut,
+  Languages,
+} from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuthStore } from "@/stores/auth-store";
@@ -10,6 +18,7 @@ const NAV = [
   { to: "/import", label: "Importer", icon: Upload, end: false },
   { to: "/optimize", label: "Optimiser", icon: Navigation, end: false },
   { to: "/fleet", label: "Flotte", icon: Truck, end: false },
+  { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
 ];
 
 export function Layout() {

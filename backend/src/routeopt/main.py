@@ -14,6 +14,7 @@ from routeopt.core.health import check_database, check_osrm, check_redis
 from routeopt.core.logging import configure_logging
 from routeopt.core.middleware import register_middleware
 from routeopt.database import get_session
+from routeopt.modules.analytics.router import router as analytics_router
 from routeopt.modules.auth.router import router as auth_router
 from routeopt.modules.dashboard.router import router as dashboard_router
 from routeopt.modules.driver.router import router as driver_router
@@ -46,6 +47,7 @@ app.include_router(fleet_router, prefix="/api/v1")
 app.include_router(routes_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(driver_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["health"])
