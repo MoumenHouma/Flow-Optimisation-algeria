@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DriverPage } from "@/features/driver/DriverPage";
@@ -40,10 +40,16 @@ const ROUTE = {
 };
 
 describe("DriverPage", () => {
-  it("shows the current stop with progress and marks it delivered", async () => {
+  it("captures proof then marks the current stop delivered", async () => {
     const fetchMock = mockFetch({
       "GET /api/v1/driver/route": () => ({ body: ROUTE }),
-      "PUT /api/v1/driver/deliveries/d1/status": () => ({ body: { id: "d1", status: "delivered" } }),
+      "POST /api/v1/driver/deliveries/d1/proof": () => ({
+        status: 201,
+        body: { delivery_id: "d1", photo_url: "https://minio.local/pod/d1/photo.jpg" },
+      }),
+      "PUT /api/v1/driver/deliveries/d1/status": () => ({
+        body: { id: "d1", status: "delivered" },
+      }),
     });
     const user = userEvent.setup();
     renderWithProviders(<DriverPage />, { route: "/driver" });
@@ -51,8 +57,24 @@ describe("DriverPage", () => {
     await waitFor(() => expect(screen.getByText(/12 Rue Didouche Mourad/)).toBeInTheDocument());
     expect(screen.getByText("0/2")).toBeInTheDocument();
 
+    // "Livré" opens the proof sheet; confirm is disabled until a photo is added.
     await user.click(screen.getByRole("button", { name: /livré/i }));
+    const confirm = await screen.findByRole("button", { name: /confirmer la livraison/i });
+    expect(confirm).toBeDisabled();
 
+    const file = new File(["jpeg-bytes"], "photo.jpg", { type: "image/jpeg" });
+    fireEvent.change(document.querySelector("#pod-photo")!, { target: { files: [file] } });
+    await waitFor(() => expect(confirm).toBeEnabled());
+
+    await user.click(confirm);
+
+    // Proof is uploaded, then the stop is marked delivered.
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/driver/deliveries/d1/proof"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/api/v1/driver/deliveries/d1/status"),
@@ -64,8 +86,6 @@ describe("DriverPage", () => {
   it("shows an empty state when no route is assigned", async () => {
     mockFetch({ "GET /api/v1/driver/route": () => ({ body: null }) });
     renderWithProviders(<DriverPage />, { route: "/driver" });
-    await waitFor(() =>
-      expect(screen.getByText(/aucune tournée assignée/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/aucune tournée assignée/i)).toBeInTheDocument());
   });
 });

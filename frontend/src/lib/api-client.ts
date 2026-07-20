@@ -43,3 +43,25 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const text = await response.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
+
+// Multipart upload — never set Content-Type so the browser adds the boundary.
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: authHeader(),
+    body: form,
+  });
+
+  if (response.status === 401) {
+    localStorage.removeItem("access_token");
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.assign("/login");
+    }
+    throw new ApiError(401, "Unauthorized");
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}

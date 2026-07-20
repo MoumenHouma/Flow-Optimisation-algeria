@@ -10,6 +10,7 @@ from routeopt.models.company import Company
 from routeopt.models.delivery import Delivery
 from routeopt.models.delivery_status_history import DeliveryStatusHistory
 from routeopt.models.optimization_job import OptimizationJob
+from routeopt.models.proof_of_delivery import ProofOfDelivery
 from routeopt.models.refresh_token import RefreshToken
 from routeopt.models.route import Route, RouteStop
 from routeopt.models.user import User
@@ -21,6 +22,7 @@ __all__ = [
     "Delivery",
     "DeliveryStatusHistory",
     "OptimizationJob",
+    "ProofOfDelivery",
     "RefreshToken",
     "Route",
     "RouteStop",

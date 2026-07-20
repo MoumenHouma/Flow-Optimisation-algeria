@@ -7,11 +7,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.exceptions import NotFoundError, ValidationError
+from routeopt.core.storage import Storage
 from routeopt.models.delivery import Delivery
 from routeopt.models.delivery_status_history import DeliveryStatusHistory
+from routeopt.models.proof_of_delivery import ProofOfDelivery
 from routeopt.models.route import Route
 from routeopt.models.vehicle import Vehicle
-from routeopt.modules.driver.schemas import DriverRouteOut, DriverStopOut, StatusUpdate
+from routeopt.modules.driver.schemas import (
+    DriverRouteOut,
+    DriverStopOut,
+    ProofOut,
+    StatusUpdate,
+)
 
 _ACTIVE_ROUTE_STATUSES = ("planned", "dispatched", "in_progress")
 
@@ -85,9 +92,10 @@ class DriverService:
             stops=stops,
         )
 
-    async def update_status(
-        self, user_id: str, company_id: str, delivery_id: str, payload: StatusUpdate
-    ) -> Delivery:
+    async def _authorize_delivery(
+        self, user_id: str, company_id: str, delivery_id: str
+    ) -> tuple[Delivery, Route]:
+        """Fetch a delivery the calling driver owns, or raise (404 = no leak)."""
         delivery = await self.session.get(Delivery, uuid.UUID(delivery_id))
         if delivery is None or str(delivery.company_id) != company_id:
             raise NotFoundError("Delivery not found")
@@ -100,9 +108,15 @@ class DriverService:
             if route and route.vehicle_id
             else None
         )
-        # Only the driver assigned to the route's vehicle may update it (404 = no leak).
-        if vehicle is None or str(vehicle.driver_user_id) != user_id:
+        # Only the driver assigned to the route's vehicle may touch it.
+        if route is None or vehicle is None or str(vehicle.driver_user_id) != user_id:
             raise NotFoundError("Delivery not found")
+        return delivery, route
+
+    async def update_status(
+        self, user_id: str, company_id: str, delivery_id: str, payload: StatusUpdate
+    ) -> Delivery:
+        delivery, route = await self._authorize_delivery(user_id, company_id, delivery_id)
 
         self.session.add(
             DeliveryStatusHistory(
@@ -116,9 +130,85 @@ class DriverService:
             )
         )
         delivery.status = payload.status
-        if route is not None and route.status in ("planned", "dispatched"):
+        if route.status in ("planned", "dispatched"):
             route.status = "in_progress"
 
         await self.session.commit()
         await self.session.refresh(delivery)
         return delivery
+
+    async def save_proof(
+        self,
+        user_id: str,
+        company_id: str,
+        delivery_id: str,
+        photo: tuple[bytes, str] | None,
+        signature: tuple[bytes, str] | None,
+        lat: float | None,
+        lon: float | None,
+        storage: Storage,
+    ) -> ProofOut:
+        """Store a delivery's proof (photo/signature) — one per delivery, upsert."""
+        delivery, _ = await self._authorize_delivery(user_id, company_id, delivery_id)
+        if photo is None and signature is None:
+            raise ValidationError("A photo or signature is required")
+
+        proof = await self.session.scalar(
+            select(ProofOfDelivery).where(ProofOfDelivery.delivery_id == delivery.id)
+        )
+        if proof is None:
+            proof = ProofOfDelivery(delivery_id=delivery.id)
+            self.session.add(proof)
+        proof.driver_user_id = uuid.UUID(user_id)
+        proof.lat = lat
+        proof.lon = lon
+
+        if photo is not None:
+            data, content_type = photo
+            key = f"pod/{delivery.id}/photo-{uuid.uuid4().hex}{_ext(content_type)}"
+            await storage.put(key, data, content_type)
+            proof.photo_url = key
+        if signature is not None:
+            data, content_type = signature
+            key = f"pod/{delivery.id}/signature-{uuid.uuid4().hex}{_ext(content_type)}"
+            await storage.put(key, data, content_type)
+            proof.signature_url = key
+
+        await self.session.commit()
+        await self.session.refresh(proof)
+        return await self._to_out(proof, storage)
+
+    async def get_proof(
+        self, user_id: str, company_id: str, delivery_id: str, storage: Storage
+    ) -> ProofOut | None:
+        delivery, _ = await self._authorize_delivery(user_id, company_id, delivery_id)
+        proof = await self.session.scalar(
+            select(ProofOfDelivery).where(ProofOfDelivery.delivery_id == delivery.id)
+        )
+        if proof is None:
+            return None
+        return await self._to_out(proof, storage)
+
+    async def _to_out(self, proof: ProofOfDelivery, storage: Storage) -> ProofOut:
+        return ProofOut(
+            delivery_id=str(proof.delivery_id),
+            photo_url=(await storage.presigned_get(proof.photo_url) if proof.photo_url else None),
+            signature_url=(
+                await storage.presigned_get(proof.signature_url) if proof.signature_url else None
+            ),
+            lat=float(proof.lat) if proof.lat is not None else None,
+            lon=float(proof.lon) if proof.lon is not None else None,
+            captured_at=proof.captured_at.isoformat(),
+        )
+
+
+_EXT_BY_TYPE = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+
+
+def _ext(content_type: str) -> str:
+    return _EXT_BY_TYPE.get(content_type.lower().split(";")[0].strip(), "")

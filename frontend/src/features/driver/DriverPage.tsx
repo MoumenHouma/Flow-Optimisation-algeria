@@ -1,9 +1,12 @@
 import { CheckCircle, Navigation, Phone, XCircle, Loader2, LogOut } from "lucide-react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { type DriverStatus, useMyRoute, useUpdateStatus } from "@/api/driver";
 import { useAuthStore } from "@/stores/auth-store";
 import type { DriverStop } from "@/types";
+
+import { ProofSheet } from "./ProofSheet";
 
 // Driver PWA (F8) — docs/DESIGN.md §3.4. Mobile-first; its own shell (no manager nav).
 export function DriverPage() {
@@ -11,6 +14,7 @@ export function DriverPage() {
   const clear = useAuthStore((s) => s.clear);
   const { data: route, isLoading } = useMyRoute();
   const update = useUpdateStatus();
+  const [proofStop, setProofStop] = useState<DriverStop | null>(null);
 
   const logout = () => {
     clear();
@@ -22,6 +26,12 @@ export function DriverPage() {
   const act = async (stop: DriverStop, status: DriverStatus) => {
     const pos = await currentPosition();
     update.mutate({ deliveryId: stop.delivery_id, status, ...pos });
+  };
+
+  // Marking delivered requires proof; failure is recorded immediately.
+  const markDelivered = () => {
+    update.mutate({ deliveryId: proofStop!.delivery_id, status: "delivered" });
+    setProofStop(null);
   };
 
   return (
@@ -61,7 +71,7 @@ export function DriverPage() {
               <StopCard
                 stop={current}
                 pending={update.isPending}
-                onDelivered={() => act(current, "delivered")}
+                onDelivered={() => setProofStop(current)}
                 onFailed={() => act(current, "failed")}
               />
             ) : (
@@ -78,6 +88,14 @@ export function DriverPage() {
           </>
         )}
       </main>
+
+      {proofStop && (
+        <ProofSheet
+          stop={proofStop}
+          onCancel={() => setProofStop(null)}
+          onConfirmed={markDelivered}
+        />
+      )}
     </div>
   );
 }

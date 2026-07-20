@@ -32,3 +32,13 @@ class StatusUpdate(BaseModel):
     reason: str | None = None
     lat: float | None = None
     lon: float | None = None
+
+
+class ProofOut(BaseModel):
+    delivery_id: str
+    # Short-lived presigned URLs (or null if that artefact wasn't captured).
+    photo_url: str | None
+    signature_url: str | None
+    lat: float | None
+    lon: float | None
+    captured_at: str

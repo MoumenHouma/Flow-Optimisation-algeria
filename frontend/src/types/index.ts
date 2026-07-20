@@ -1,13 +1,7 @@
 // Domain types mirroring the API DTOs (docs/SCHEMA.md, backend schemas).
 
 export type DeliveryStatus =
-  | "pending"
-  | "geocoded"
-  | "assigned"
-  | "en_route"
-  | "delivered"
-  | "failed"
-  | "cancelled";
+  "pending" | "geocoded" | "assigned" | "en_route" | "delivered" | "failed" | "cancelled";
 
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
@@ -99,6 +93,15 @@ export interface DriverRoute {
   delivered: number;
   total: number;
   stops: DriverStop[];
+}
+
+export interface ProofOfDelivery {
+  delivery_id: string;
+  photo_url: string | null;
+  signature_url: string | null;
+  lat: number | null;
+  lon: number | null;
+  captured_at: string;
 }
 
 export interface DashboardSummary {
