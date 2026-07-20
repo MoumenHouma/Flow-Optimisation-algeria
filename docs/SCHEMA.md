@@ -416,6 +416,7 @@ CREATE TABLE optimization_jobs (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id     UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     requested_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    reoptimize_route_id UUID REFERENCES routes(id) ON DELETE SET NULL, -- F9: route re-planned in place
     trigger        VARCHAR(20) NOT NULL DEFAULT 'manual', -- manual | reoptimize | scheduled
     status         VARCHAR(50) NOT NULL DEFAULT 'pending',
     input_hash     VARCHAR(64), -- hash des paramètres d'entrée, pour cache/déduplication

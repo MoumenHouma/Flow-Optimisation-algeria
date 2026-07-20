@@ -20,6 +20,14 @@ class OptimizeRequest(BaseModel):
     constraints: OptimizationConstraints = OptimizationConstraints()
 
 
+class ReoptimizeRequest(BaseModel):
+    # The driver's live position becomes the start of the re-planned leg (F9);
+    # falls back to the vehicle depot when omitted.
+    current_lat: float | None = None
+    current_lon: float | None = None
+    constraints: OptimizationConstraints = OptimizationConstraints()
+
+
 class OptimizeResponse(BaseModel):
     job_id: str
     status: JobStatus
