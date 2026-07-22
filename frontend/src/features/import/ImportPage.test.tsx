@@ -35,9 +35,7 @@ describe("ImportPage", () => {
 
     await user.click(screen.getByRole("button", { name: /importer 2 livraisons/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/2 livraisons importées/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/2 livraisons importées/i)).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/api/v1/orders"),
       expect.objectContaining({ method: "POST" }),

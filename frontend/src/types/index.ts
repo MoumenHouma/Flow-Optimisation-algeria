@@ -148,6 +148,20 @@ export interface WebhookCreated extends Webhook {
   secret: string;
 }
 
+export interface Branding {
+  brand_name?: string | null;
+  primary_color?: string | null;
+  logo_url?: string | null;
+}
+
+export interface Company {
+  id: string;
+  name: string;
+  plan: string;
+  locale: string;
+  branding: Branding | null;
+}
+
 export interface Territory {
   id: string;
   name: string;

@@ -9,7 +9,9 @@ const MapLibreMap = lazy(() => import("@/components/MapLibreMap"));
 export function RouteMap({ routes }: { routes: RouteResult[] }) {
   return (
     <ErrorBoundary
-      fallback={<div className="grid h-full place-items-center text-danger">Carte indisponible</div>}
+      fallback={
+        <div className="grid h-full place-items-center text-danger">Carte indisponible</div>
+      }
     >
       <Suspense fallback={<div className="h-full w-full animate-pulse bg-neutral-100" />}>
         <MapLibreMap routes={routes} />

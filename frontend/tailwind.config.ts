@@ -6,10 +6,12 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Driven by CSS variables so a company's brand colour applies at runtime
+        // (F16 white-label). Defaults live in index.css.
         primary: {
-          DEFAULT: "#2563EB",
-          dark: "#1D4ED8",
-          light: "#DBEAFE",
+          DEFAULT: "rgb(var(--color-primary) / <alpha-value>)",
+          dark: "rgb(var(--color-primary-dark) / <alpha-value>)",
+          light: "rgb(var(--color-primary-light) / <alpha-value>)",
         },
         success: "#10B981",
         warning: "#F59E0B",

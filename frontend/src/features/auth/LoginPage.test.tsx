@@ -41,9 +41,7 @@ describe("LoginPage", () => {
     await user.type(screen.getByLabelText("Mot de passe"), "wrongpass");
     await user.click(screen.getByRole("button", { name: /se connecter/i }));
 
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/invalide/i),
-    );
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/invalide/i));
     expect(localStorage.getItem("access_token")).toBeNull();
   });
 });
