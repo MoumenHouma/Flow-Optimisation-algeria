@@ -15,6 +15,7 @@ from routeopt.core.logging import configure_logging
 from routeopt.core.middleware import register_middleware
 from routeopt.database import get_session
 from routeopt.modules.analytics.router import router as analytics_router
+from routeopt.modules.audit.router import router as audit_router
 from routeopt.modules.auth.router import router as auth_router
 from routeopt.modules.company.router import router as company_router
 from routeopt.modules.dashboard.router import router as dashboard_router
@@ -30,9 +31,24 @@ from routeopt.modules.territories.router import router as territories_router
 settings = get_settings()
 
 
+def _init_sentry() -> None:
+    """Initialise Sentry error reporting when a DSN is configured (no-op otherwise)."""
+    if not settings.sentry_dsn:
+        return
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.environment,
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
+    _init_sentry()
     yield
 
 
@@ -57,6 +73,7 @@ app.include_router(integrations_router, prefix="/api/v1")
 app.include_router(predictions_router, prefix="/api/v1")
 app.include_router(territories_router, prefix="/api/v1")
 app.include_router(company_router, prefix="/api/v1")
+app.include_router(audit_router, prefix="/api/v1")
 # Public partner API — key-authed, mounted off /api/public/v1 (F10).
 app.include_router(public_api_router, prefix="/api")
 

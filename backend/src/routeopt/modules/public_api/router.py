@@ -8,11 +8,13 @@ reading delivery status needs ``read``; creating deliveries needs ``write``.
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from routeopt.core import audit
 from routeopt.core.api_auth import ApiClient, require_scope
+from routeopt.core.audit import client_ip
 from routeopt.core.exceptions import NotFoundError
 from routeopt.database import get_session
 from routeopt.models.delivery import Delivery
@@ -29,6 +31,7 @@ async def create_delivery(
     payload: PublicDeliveryIn,
     session: SessionDep,
     client: Annotated[ApiClient, Depends(require_scope("write"))],
+    request: Request,
 ) -> PublicDeliveryOut:
     """Create a delivery (geocoded if no coordinates are supplied)."""
     item = DeliveryIn(
@@ -44,6 +47,16 @@ async def create_delivery(
         priority=payload.priority,
     )
     (delivery,) = await OrdersService(session).bulk_create(client.company_id, [item])
+    await audit.record(
+        session,
+        action="public_api.delivery_created",
+        resource_type="delivery",
+        company_id=client.company_id,
+        resource_id=delivery.id,
+        metadata={"api_key_id": client.key_id, "order_id": payload.order_id},
+        ip_address=client_ip(request),
+    )
+    await session.commit()
     return PublicDeliveryOut.from_model(delivery)
 
 

@@ -5,13 +5,15 @@ Persists Company + User (SCHEMA.md §3.1, §3.2) and revocable refresh tokens
 and a fresh pair is issued, so a stolen-then-replayed token is caught.
 """
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.config import get_settings
+from routeopt.core import audit
 from routeopt.core.exceptions import AuthError, ConflictError
 from routeopt.core.security import (
     create_access_token,
@@ -26,6 +28,7 @@ from routeopt.models.refresh_token import RefreshToken
 from routeopt.models.user import User
 from routeopt.modules.auth.schemas import (
     LoginRequest,
+    LogoutRequest,
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
@@ -59,18 +62,27 @@ class AuthService:
             await self.session.rollback()
             raise ConflictError("Email already registered") from exc
 
-        tokens = await self._issue_and_store(user)
+        tokens = await self._issue_and_store(user, uuid.uuid4())
         await self.session.commit()
         return tokens
 
-    async def login(self, payload: LoginRequest) -> TokenResponse:
+    async def login(self, payload: LoginRequest, ip: str | None = None) -> TokenResponse:
         user = await self._get_user_by_email(payload.email.lower())
         if user is None or not verify_password(payload.password, user.password_hash):
             raise AuthError("Invalid email or password")
         if not user.active:
             raise AuthError("Account is disabled")
         user.last_login_at = datetime.now(UTC)
-        tokens = await self._issue_and_store(user)
+        tokens = await self._issue_and_store(user, uuid.uuid4())
+        await audit.record(
+            self.session,
+            action="user.login",
+            resource_type="user",
+            company_id=user.company_id,
+            actor_user_id=user.id,
+            resource_id=user.id,
+            ip_address=ip,
+        )
         await self.session.commit()
         return tokens
 
@@ -87,25 +99,59 @@ class AuthService:
             select(RefreshToken).where(RefreshToken.token_hash == token_hash)
         )
         now = datetime.now(UTC)
-        if stored is None or stored.revoked_at is not None or stored.expires_at < now:
+        if stored is None or stored.expires_at < now:
             raise AuthError("Refresh token expired or revoked")
+
+        if stored.revoked_at is not None:
+            # Reuse of an already-rotated token → likely theft. Revoke the whole
+            # family so no descendant token remains valid (M3, OWASP reuse detection).
+            await self._revoke_family(stored.family_id, now)
+            await self.session.commit()
+            raise AuthError("Refresh token reuse detected")
 
         stored.revoked_at = now  # rotate: single-use refresh tokens
         user = await self.session.get(User, stored.user_id)
         if user is None or not user.active:
             raise AuthError("User no longer active")
-        tokens = await self._issue_and_store(user)
+        tokens = await self._issue_and_store(user, stored.family_id)
         await self.session.commit()
         return tokens
 
+    async def logout(self, payload: LogoutRequest) -> None:
+        """Revoke the presented refresh token and its whole family (M3).
+
+        Idempotent: an unknown or malformed token is a no-op — logout should
+        never error. The short-lived access token (15 min) is not revoked here;
+        it simply expires.
+        """
+        try:
+            claims = decode_token(payload.refresh_token)
+        except Exception:  # noqa: BLE001 - any decode failure is a silent no-op
+            return
+        if claims.get("type") != "refresh":
+            return
+        stored = await self.session.scalar(
+            select(RefreshToken).where(RefreshToken.token_hash == hash_token(payload.refresh_token))
+        )
+        if stored is not None:
+            await self._revoke_family(stored.family_id, datetime.now(UTC))
+            await self.session.commit()
+
     # ── helpers ──────────────────────────────────────────────────────────
+    async def _revoke_family(self, family_id: uuid.UUID, now: datetime) -> None:
+        await self.session.execute(
+            update(RefreshToken)
+            .where(RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )
+
     async def _get_user_by_email(self, email: str) -> User | None:
         user: User | None = await self.session.scalar(
             select(User).where(User.email == email, User.deleted_at.is_(None))
         )
         return user
 
-    async def _issue_and_store(self, user: User) -> TokenResponse:
+    async def _issue_and_store(self, user: User, family_id: uuid.UUID) -> TokenResponse:
         if user.role not in _VALID_ROLES:
             raise AuthError("Unknown role")
         # Include the plan so rate limits are plan-aware without a per-request DB hit.
@@ -122,6 +168,7 @@ class AuthService:
         self.session.add(
             RefreshToken(
                 user_id=user.id,
+                family_id=family_id,
                 token_hash=hash_token(refresh),
                 expires_at=datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days),
             )

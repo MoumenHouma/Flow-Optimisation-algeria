@@ -2,9 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from routeopt.core import audit
+from routeopt.core.audit import client_ip
 from routeopt.core.dependencies import CurrentUser, get_current_user, require_roles
 from routeopt.database import get_session
 from routeopt.modules.company.schemas import Branding, CompanyOut
@@ -29,7 +31,18 @@ async def update_branding(
     payload: Branding,
     session: SessionDep,
     user: Annotated[CurrentUser, Depends(require_roles("admin"))],
+    request: Request,
 ) -> CompanyOut:
     """Set the company's brand name, primary colour and logo (admin)."""
     company = await CompanyService(session).update_branding(user.company_id, payload)
+    await audit.record(
+        session,
+        action="company.branding_changed",
+        resource_type="company",
+        company_id=user.company_id,
+        actor_user_id=user.user_id,
+        resource_id=user.company_id,
+        ip_address=client_ip(request),
+    )
+    await session.commit()
     return CompanyOut.from_model(company)

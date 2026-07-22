@@ -93,3 +93,51 @@ async def test_register_login_refresh_me(client: AsyncClient) -> None:
     assert refreshed.status_code == 200
     reused = await client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
     assert reused.status_code == 401  # single-use enforced
+
+
+async def test_refresh_reuse_revokes_whole_family(client: AsyncClient) -> None:
+    """M3: replaying a rotated token revokes every descendant in its family."""
+    reg = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "company_name": "Acme",
+            "email": "fam@acme.dz",
+            "password": "supersecret",
+            "full_name": "Fam",
+        },
+    )
+    r0 = reg.json()["refresh_token"]
+    # r0 -> r1 (r0 now revoked, r1 valid and in the same family).
+    rotated = await client.post("/api/v1/auth/refresh", json={"refresh_token": r0})
+    r1 = rotated.json()["refresh_token"]
+
+    # Replaying r0 is reuse: detected + whole family revoked.
+    reuse = await client.post("/api/v1/auth/refresh", json={"refresh_token": r0})
+    assert reuse.status_code == 401
+
+    # r1 was valid before, but the family revocation now kills it too.
+    after = await client.post("/api/v1/auth/refresh", json={"refresh_token": r1})
+    assert after.status_code == 401
+
+
+async def test_logout_revokes_refresh_token(client: AsyncClient) -> None:
+    """M3: logout revokes the presented refresh token (idempotent, always 204)."""
+    reg = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "company_name": "Acme",
+            "email": "out@acme.dz",
+            "password": "supersecret",
+            "full_name": "Out",
+        },
+    )
+    refresh_token = reg.json()["refresh_token"]
+
+    out = await client.post("/api/v1/auth/logout", json={"refresh_token": refresh_token})
+    assert out.status_code == 204
+    # The revoked token can no longer be exchanged.
+    denied = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    assert denied.status_code == 401
+    # Logout is idempotent — a second call (or an unknown token) still 204s.
+    again = await client.post("/api/v1/auth/logout", json={"refresh_token": refresh_token})
+    assert again.status_code == 204

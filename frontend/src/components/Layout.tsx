@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
+import { useLogout } from "@/api/auth";
 import { useBranding } from "@/api/company";
-import { useAuthStore } from "@/stores/auth-store";
 import { isRTL, useUIStore } from "@/stores/ui-store";
 
 // App shell: top nav + routed content (docs/DESIGN.md §3.2, §6 RTL).
@@ -28,14 +28,16 @@ const NAV = [
 
 export function Layout() {
   const navigate = useNavigate();
-  const clear = useAuthStore((s) => s.clear);
+  const logoutMutation = useLogout();
   const locale = useUIStore((s) => s.locale);
   const setLocale = useUIStore((s) => s.setLocale);
   const { brandName, logoUrl } = useBranding();
 
   const logout = () => {
-    clear();
-    navigate("/login", { replace: true });
+    // Revoke the refresh-token family server-side (M3), then bounce to login.
+    logoutMutation.mutate(undefined, {
+      onSettled: () => navigate("/login", { replace: true }),
+    });
   };
 
   return (

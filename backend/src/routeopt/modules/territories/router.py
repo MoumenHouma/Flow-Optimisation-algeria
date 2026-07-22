@@ -2,9 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from routeopt.core import audit
+from routeopt.core.audit import client_ip
 from routeopt.core.dependencies import CurrentUser, get_current_user, require_roles
 from routeopt.database import get_session
 from routeopt.modules.territories.schemas import (
@@ -48,11 +50,28 @@ async def auto_generate(
 
 @router.put("/{territory_id}", response_model=TerritoryOut)
 async def update_territory(
-    territory_id: str, payload: TerritoryUpdate, session: SessionDep, user: ManagerDep
+    territory_id: str,
+    payload: TerritoryUpdate,
+    session: SessionDep,
+    user: ManagerDep,
+    request: Request,
 ) -> TerritoryOut:
     territory = await TerritoryService(session).update_territory(
         user.company_id, territory_id, payload
     )
+    # Driver (re)assignment is a sensitive change — audit it (H2).
+    if "driver_user_id" in payload.model_fields_set:
+        await audit.record(
+            session,
+            action="territory.driver_assigned",
+            resource_type="territory",
+            company_id=user.company_id,
+            actor_user_id=user.user_id,
+            resource_id=territory_id,
+            metadata={"driver_user_id": payload.driver_user_id},
+            ip_address=client_ip(request),
+        )
+        await session.commit()
     return TerritoryOut.from_model(territory)
 
 
