@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from routeopt.core.dependencies import CurrentUser, get_current_user, require_roles
 from routeopt.database import get_session
 from routeopt.modules.fleet.schemas import (
+    DepotIn,
+    DepotOut,
     DriverIn,
     DriverOut,
     FleetSummary,
@@ -62,3 +64,32 @@ async def update_vehicle(
 @router.delete("/vehicles/{vehicle_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_vehicle(vehicle_id: str, session: SessionDep, user: ManagerDep) -> None:
     await FleetService(session).delete_vehicle(user.company_id, vehicle_id)
+
+
+# ── Depots (F12 multi-dépôt) ─────────────────────────────────────────────
+@router.get("/depots", response_model=list[DepotOut])
+async def list_depots(
+    session: SessionDep,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> list[DepotOut]:
+    depots = await FleetService(session).list_depots(user.company_id)
+    return [DepotOut.from_model(d) for d in depots]
+
+
+@router.post("/depots", response_model=DepotOut, status_code=201)
+async def add_depot(payload: DepotIn, session: SessionDep, user: ManagerDep) -> DepotOut:
+    depot = await FleetService(session).add_depot(user.company_id, payload)
+    return DepotOut.from_model(depot)
+
+
+@router.put("/depots/{depot_id}", response_model=DepotOut)
+async def update_depot(
+    depot_id: str, payload: DepotIn, session: SessionDep, user: ManagerDep
+) -> DepotOut:
+    depot = await FleetService(session).update_depot(user.company_id, depot_id, payload)
+    return DepotOut.from_model(depot)
+
+
+@router.delete("/depots/{depot_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_depot(depot_id: str, session: SessionDep, user: ManagerDep) -> None:
+    await FleetService(session).delete_depot(user.company_id, depot_id)

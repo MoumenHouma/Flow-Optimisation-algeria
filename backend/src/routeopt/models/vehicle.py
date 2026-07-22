@@ -18,6 +18,11 @@ class Vehicle(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     driver_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
+    # F12 multi-dépôt: when set, the depot coords below are resolved from this
+    # depot. Null keeps the classic single, vehicle-local departure point.
+    depot_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("depots.id", ondelete="SET NULL")
+    )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     vehicle_type: Mapped[str] = mapped_column(String(20), nullable=False, default="car")
     license_plate: Mapped[str | None] = mapped_column(String(20))

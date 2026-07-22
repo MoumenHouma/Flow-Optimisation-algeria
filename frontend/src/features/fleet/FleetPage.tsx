@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Truck, Plus, Pencil, Trash2, Package, Scale } from "lucide-react";
 
+import { useAddDepot, useDeleteDepot, useDepots } from "@/api/depots";
 import {
   useAddVehicle,
   useDeleteVehicle,
@@ -8,6 +9,7 @@ import {
   useUpdateVehicle,
   useVehicles,
 } from "@/api/fleet";
+import { DepotPanel } from "@/features/fleet/DepotPanel";
 import { VehicleForm } from "@/features/fleet/VehicleForm";
 import { vehicleToForm } from "@/lib/vehicle-form";
 import type { Vehicle, VehicleDraft } from "@/types";
@@ -25,6 +27,9 @@ const TYPE_LABELS: Record<string, string> = {
 export function FleetPage() {
   const vehicles = useVehicles();
   const summary = useFleetSummary();
+  const depots = useDepots();
+  const addDepot = useAddDepot();
+  const deleteDepot = useDeleteDepot();
   const add = useAddVehicle();
   const update = useUpdateVehicle();
   const remove = useDeleteVehicle();
@@ -80,6 +85,8 @@ export function FleetPage() {
         <div className="mt-4">
           <VehicleForm
             initial={editing.mode === "edit" ? vehicleToForm(editing.vehicle) : undefined}
+            initialDepotId={editing.mode === "edit" ? editing.vehicle.depot_id : null}
+            depots={depots.data ?? []}
             submitLabel={editing.mode === "edit" ? "Enregistrer" : "Ajouter"}
             submitting={add.isPending || update.isPending}
             onSubmit={submit}
@@ -92,6 +99,13 @@ export function FleetPage() {
           )}
         </div>
       )}
+
+      <DepotPanel
+        depots={depots.data ?? []}
+        onAdd={(draft) => addDepot.mutate(draft)}
+        onDelete={(id) => deleteDepot.mutate(id)}
+        adding={addDepot.isPending}
+      />
 
       <section className="mt-6 space-y-3">
         {vehicles.isLoading && <p className="text-neutral-500">Chargement…</p>}

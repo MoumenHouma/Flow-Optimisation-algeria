@@ -7,12 +7,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routeopt.core.exceptions import ConflictError, NotFoundError
+from routeopt.core.exceptions import ConflictError, NotFoundError, ValidationError
 from routeopt.core.security import hash_password
 from routeopt.models.company import Company
+from routeopt.models.depot import Depot
 from routeopt.models.user import User
 from routeopt.models.vehicle import Vehicle
-from routeopt.modules.fleet.schemas import DriverIn, FleetSummary, VehicleIn
+from routeopt.modules.fleet.schemas import DepotIn, DriverIn, FleetSummary, VehicleIn
 
 
 class FleetService:
@@ -30,6 +31,7 @@ class FleetService:
 
     async def add_vehicle(self, company_id: str, payload: VehicleIn) -> Vehicle:
         await self._enforce_quota(company_id)
+        depot_id, lat, lon, address = await self._resolve_depot(company_id, payload)
         vehicle = Vehicle(
             company_id=uuid.UUID(company_id),
             name=payload.name,
@@ -37,9 +39,10 @@ class FleetService:
             license_plate=payload.license_plate,
             capacity_weight=payload.capacity_weight,
             capacity_volume=payload.capacity_volume,
-            depot_lat=payload.depot.lat,
-            depot_lon=payload.depot.lon,
-            depot_address=payload.depot_address,
+            depot_id=depot_id,
+            depot_lat=lat,
+            depot_lon=lon,
+            depot_address=address,
             driver_user_id=uuid.UUID(payload.driver_user_id) if payload.driver_user_id else None,
         )
         self.session.add(vehicle)
@@ -49,20 +52,81 @@ class FleetService:
 
     async def update_vehicle(self, company_id: str, vehicle_id: str, payload: VehicleIn) -> Vehicle:
         vehicle = await self._get_scoped(company_id, vehicle_id)
+        depot_id, lat, lon, address = await self._resolve_depot(company_id, payload)
         vehicle.name = payload.name
         vehicle.vehicle_type = payload.vehicle_type
         vehicle.license_plate = payload.license_plate
         vehicle.capacity_weight = payload.capacity_weight
         vehicle.capacity_volume = payload.capacity_volume
-        vehicle.depot_lat = payload.depot.lat
-        vehicle.depot_lon = payload.depot.lon
-        vehicle.depot_address = payload.depot_address
+        vehicle.depot_id = depot_id
+        vehicle.depot_lat = lat
+        vehicle.depot_lon = lon
+        vehicle.depot_address = address
         vehicle.driver_user_id = (
             uuid.UUID(payload.driver_user_id) if payload.driver_user_id else None
         )
         await self.session.commit()
         await self.session.refresh(vehicle)
         return vehicle
+
+    async def _resolve_depot(
+        self, company_id: str, payload: VehicleIn
+    ) -> tuple[uuid.UUID | None, float, float, str]:
+        """A vehicle's departure point: from a depot (F12) or inline coordinates."""
+        if payload.depot_id:
+            depot = await self.session.get(Depot, uuid.UUID(payload.depot_id))
+            if depot is None or str(depot.company_id) != company_id or depot.deleted_at is not None:
+                raise NotFoundError("Depot not found")
+            return depot.id, float(depot.lat), float(depot.lon), depot.address
+        if payload.depot is None or payload.depot_address is None:
+            raise ValidationError("Provide a depot_id or an inline depot with address")
+        return None, payload.depot.lat, payload.depot.lon, payload.depot_address
+
+    # ── depots (F12 multi-dépôt) ─────────────────────────────────────────
+    async def list_depots(self, company_id: str) -> list[Depot]:
+        result = await self.session.scalars(
+            select(Depot).where(
+                Depot.company_id == uuid.UUID(company_id),
+                Depot.deleted_at.is_(None),
+            )
+        )
+        return list(result)
+
+    async def add_depot(self, company_id: str, payload: DepotIn) -> Depot:
+        depot = Depot(
+            company_id=uuid.UUID(company_id),
+            name=payload.name,
+            lat=payload.location.lat,
+            lon=payload.location.lon,
+            address=payload.address,
+            active=payload.active,
+        )
+        self.session.add(depot)
+        await self.session.commit()
+        await self.session.refresh(depot)
+        return depot
+
+    async def update_depot(self, company_id: str, depot_id: str, payload: DepotIn) -> Depot:
+        depot = await self._get_depot_scoped(company_id, depot_id)
+        depot.name = payload.name
+        depot.lat = payload.location.lat
+        depot.lon = payload.location.lon
+        depot.address = payload.address
+        depot.active = payload.active
+        await self.session.commit()
+        await self.session.refresh(depot)
+        return depot
+
+    async def delete_depot(self, company_id: str, depot_id: str) -> None:
+        depot = await self._get_depot_scoped(company_id, depot_id)
+        depot.deleted_at = datetime.now(UTC)  # soft delete; vehicles keep resolved coords
+        await self.session.commit()
+
+    async def _get_depot_scoped(self, company_id: str, depot_id: str) -> Depot:
+        depot = await self.session.get(Depot, uuid.UUID(depot_id))
+        if depot is None or str(depot.company_id) != company_id or depot.deleted_at is not None:
+            raise NotFoundError("Depot not found")
+        return depot
 
     async def delete_vehicle(self, company_id: str, vehicle_id: str) -> None:
         vehicle = await self._get_scoped(company_id, vehicle_id)

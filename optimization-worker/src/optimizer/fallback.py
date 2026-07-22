@@ -7,18 +7,25 @@ OR-Tools times out or returns no solution, flagged as sub-optimal.
 from __future__ import annotations
 
 from optimizer.distance_matrix import DistanceMatrix
-from optimizer.models import RouteStop, VehicleRoute, VRPProblem, VRPSolution
+from optimizer.models import RouteStop, VehicleRoute, VRPProblem, VRPSolution, depot_layout
 
 
 def greedy_nearest_neighbor(problem: VRPProblem, matrix: DistanceMatrix) -> VRPSolution:
-    """Assign deliveries to vehicles round-robin, each visiting nearest-unvisited."""
-    unvisited = set(range(1, len(problem.deliveries) + 1))  # node indices (depot=0)
+    """Assign deliveries to vehicles round-robin, each visiting nearest-unvisited.
+
+    Multi-dépôt aware (F12): each vehicle starts and returns to its own depot node.
+    """
+    depot_points, depot_of_vehicle = depot_layout(problem)
+    num_depots = len(depot_points)
+    # Delivery node indices sit after the depot nodes.
+    unvisited = set(range(num_depots, num_depots + len(problem.deliveries)))
     solution = VRPSolution(strategy="greedy_fallback", is_suboptimal=True)
 
-    for vehicle in problem.vehicles:
+    for vi, vehicle in enumerate(problem.vehicles):
         if not unvisited:
             break
-        current = 0  # depot
+        home = depot_of_vehicle[vi]
+        current = home
         stops: list[RouteStop] = []
         distance = 0.0
         capacity_left = vehicle.capacity
@@ -27,19 +34,22 @@ def greedy_nearest_neighbor(problem: VRPProblem, matrix: DistanceMatrix) -> VRPS
             candidates = [
                 n
                 for n in unvisited
-                if not problem.respect_capacity or problem.deliveries[n - 1].demand <= capacity_left
+                if not problem.respect_capacity
+                or problem.deliveries[n - num_depots].demand <= capacity_left
             ]
             if not candidates:
                 break
             nxt = min(candidates, key=lambda n: matrix.distances[current][n])
             distance += matrix.distances[current][nxt]
-            capacity_left -= problem.deliveries[nxt - 1].demand
-            stops.append(RouteStop(delivery_id=problem.deliveries[nxt - 1].id, sequence=seq))
+            capacity_left -= problem.deliveries[nxt - num_depots].demand
+            stops.append(
+                RouteStop(delivery_id=problem.deliveries[nxt - num_depots].id, sequence=seq)
+            )
             seq += 1
             unvisited.remove(nxt)
             current = nxt
         if stops:
-            distance += matrix.distances[current][0]  # return to depot
+            distance += matrix.distances[current][home]  # return to own depot
             solution.routes.append(
                 VehicleRoute(vehicle_id=vehicle.id, stops=stops, total_distance_m=distance)
             )

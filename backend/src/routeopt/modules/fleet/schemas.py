@@ -11,9 +11,36 @@ class VehicleIn(BaseModel):
     license_plate: str | None = None
     capacity_weight: float = Field(1000, ge=0)
     capacity_volume: float = Field(10, ge=0)
-    depot: GeoPoint
-    depot_address: str
+    # F12: provide either a depot_id (multi-dépôt) or an inline depot + address.
+    depot_id: str | None = None
+    depot: GeoPoint | None = None
+    depot_address: str | None = None
     driver_user_id: str | None = None
+
+
+class DepotIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    location: GeoPoint
+    address: str = Field(..., min_length=1)
+    active: bool = True
+
+
+class DepotOut(BaseModel):
+    id: str
+    name: str
+    location: GeoPoint
+    address: str
+    active: bool
+
+    @classmethod
+    def from_model(cls, d: Any) -> "DepotOut":
+        return cls(
+            id=str(d.id),
+            name=d.name,
+            location=GeoPoint(lat=float(d.lat), lon=float(d.lon)),
+            address=d.address,
+            active=d.active,
+        )
 
 
 class FleetSummary(BaseModel):
@@ -47,6 +74,7 @@ class VehicleOut(BaseModel):
     license_plate: str | None
     capacity_weight: float
     capacity_volume: float
+    depot_id: str | None
     depot: GeoPoint
     depot_address: str
     active: bool
@@ -60,6 +88,7 @@ class VehicleOut(BaseModel):
             license_plate=v.license_plate,
             capacity_weight=float(v.capacity_weight),
             capacity_volume=float(v.capacity_volume),
+            depot_id=str(v.depot_id) if v.depot_id else None,
             depot=GeoPoint(lat=float(v.depot_lat), lon=float(v.depot_lon)),
             depot_address=v.depot_address,
             active=v.active,

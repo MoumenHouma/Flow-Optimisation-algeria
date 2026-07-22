@@ -52,6 +52,7 @@ export interface Vehicle {
   license_plate?: string;
   capacity_weight: number;
   capacity_volume: number;
+  depot_id?: string | null;
   depot: GeoPoint;
   depot_address: string;
   active: boolean;
@@ -64,8 +65,25 @@ export interface VehicleDraft {
   license_plate?: string;
   capacity_weight: number;
   capacity_volume: number;
+  depot_id?: string;
   depot: GeoPoint;
   depot_address: string;
+}
+
+// F12 multi-dépôt: a shared departure point.
+export interface Depot {
+  id: string;
+  name: string;
+  location: GeoPoint;
+  address: string;
+  active: boolean;
+}
+
+export interface DepotDraft {
+  name: string;
+  location: GeoPoint;
+  address: string;
+  active: boolean;
 }
 
 export interface FleetSummary {

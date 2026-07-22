@@ -26,6 +26,7 @@ describe("FleetPage", () => {
       "GET /api/v1/fleet/summary": () => ({
         body: { plan: "free", vehicle_count: 1, max_vehicles: 1 },
       }),
+      "GET /api/v1/fleet/depots": () => ({ body: [] }),
       "DELETE /api/v1/fleet/vehicles/v1": () => ({ status: 204, body: null }),
     });
     vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -51,10 +52,48 @@ describe("FleetPage", () => {
       "GET /api/v1/fleet/summary": () => ({
         body: { plan: "free", vehicle_count: 1, max_vehicles: 1 },
       }),
+      "GET /api/v1/fleet/depots": () => ({ body: [] }),
     });
     renderWithProviders(<FleetPage />);
 
     await waitFor(() => expect(screen.getByText("Camion 1")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /ajouter un véhicule/i })).toBeDisabled();
+  });
+
+  it("adds a depot (F12 multi-dépôt)", async () => {
+    const fetchMock = mockFetch({
+      "GET /api/v1/fleet/vehicles": () => ({ body: [] }),
+      "GET /api/v1/fleet/summary": () => ({
+        body: { plan: "pro", vehicle_count: 0, max_vehicles: 20 },
+      }),
+      "GET /api/v1/fleet/depots": () => ({ body: [] }),
+      "POST /api/v1/fleet/depots": () => ({
+        status: 201,
+        body: {
+          id: "d1",
+          name: "Entrepôt Alger",
+          location: { lat: 36.75, lon: 3.05 },
+          address: "Alger",
+          active: true,
+        },
+      }),
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<FleetPage />);
+
+    await waitFor(() => expect(screen.getByText("Dépôts")).toBeInTheDocument());
+
+    await user.type(screen.getByLabelText("Nom du dépôt"), "Entrepôt Alger");
+    await user.type(screen.getByLabelText("Adresse du dépôt"), "Alger");
+    await user.type(screen.getByLabelText("Latitude"), "36.75");
+    await user.type(screen.getByLabelText("Longitude"), "3.05");
+    await user.click(screen.getByRole("button", { name: /ajouter un dépôt/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/fleet/depots"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
   });
 });

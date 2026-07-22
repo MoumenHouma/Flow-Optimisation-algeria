@@ -46,6 +46,29 @@ class VRPProblem:
     respect_capacity: bool = True
 
 
+def depot_layout(problem: VRPProblem) -> tuple[list[GeoPoint], list[int]]:
+    """Node layout for (multi-)depot VRP (F12): depot nodes first, then deliveries.
+
+    Returns ``(depot_points, depot_index_per_vehicle)``. Vehicles departing from
+    the same location share one depot node. The distance matrix must be built over
+    ``depot_points + delivery points`` in that order, so a delivery at
+    ``problem.deliveries[i]`` is matrix node ``len(depot_points) + i``. With a
+    single shared depot this collapses to the classic node-0 depot layout.
+    """
+    depot_points: list[GeoPoint] = []
+    index_by_key: dict[tuple[float, float], int] = {}
+    per_vehicle: list[int] = []
+    for v in problem.vehicles:
+        key = (round(v.depot.lat, 6), round(v.depot.lon, 6))
+        idx = index_by_key.get(key)
+        if idx is None:
+            idx = len(depot_points)
+            index_by_key[key] = idx
+            depot_points.append(v.depot)
+        per_vehicle.append(idx)
+    return depot_points, per_vehicle
+
+
 @dataclass
 class RouteStop:
     delivery_id: str
