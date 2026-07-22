@@ -12,7 +12,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 
 from optimizer.config import get_settings
-from optimizer.models import OptimizationError, VRPProblem
+from optimizer.models import Delivery, OptimizationError, VRPProblem
 
 settings = get_settings()
 
@@ -51,7 +51,7 @@ def cluster(problem: VRPProblem) -> list[VRPProblem]:
     coords = np.array([[d.lat, d.lon] for d in deliveries])
     labels = KMeans(n_clusters=k, n_init=10, random_state=42).fit_predict(coords)
 
-    grouped: list[list] = [[] for _ in range(k)]
+    grouped: list[list[Delivery]] = [[] for _ in range(k)]
     for d, label in zip(deliveries, labels, strict=True):
         grouped[int(label)].append(d)
 

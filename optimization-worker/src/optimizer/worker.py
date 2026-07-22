@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from typing import Any
 
 import redis.asyncio as redis
 
@@ -46,7 +47,7 @@ def _time_limit_for(num_deliveries: int) -> int:
     return settings.time_limit_large_s
 
 
-def _build_problem(payload: dict) -> VRPProblem:
+def _build_problem(payload: dict[str, Any]) -> VRPProblem:
     depot = GeoPoint(**payload["depot"])
     deliveries = [
         Delivery(
@@ -89,7 +90,7 @@ def _build_problem(payload: dict) -> VRPProblem:
 
 async def _solve_one(
     problem: VRPProblem, redis_client: redis.Redis
-) -> tuple[VRPSolution, bool, dict[str, dict]]:
+) -> tuple[VRPSolution, bool, dict[str, dict[str, Any]]]:
     """Build the matrix, solve one (sub-)problem, and render its route geometry."""
     # Matrix nodes: depot(s) first, then deliveries — same layout the solver uses.
     depot_points, _ = depot_layout(problem)
@@ -99,7 +100,7 @@ async def _solve_one(
     solver = VRPSolver(time_limit_seconds=_time_limit_for(len(problem.deliveries)))
     solution = solver.solve(problem, matrix)
 
-    geometries: dict[str, dict] = {}
+    geometries: dict[str, dict[str, Any]] = {}
     if used_osrm:
         coords = {d.id: GeoPoint(d.lat, d.lon) for d in problem.deliveries}
         depot_by_vehicle = {v.id: v.depot for v in problem.vehicles}
@@ -124,7 +125,7 @@ def _merge_into(acc: VRPSolution, part: VRPSolution) -> None:
     acc.is_suboptimal = acc.is_suboptimal or part.is_suboptimal
 
 
-async def process_job(message: dict, redis_client: redis.Redis) -> dict:
+async def process_job(message: dict[str, Any], redis_client: redis.Redis) -> dict[str, Any]:
     """Process one job payload; return the result message the backend persists."""
     started = time.monotonic()
     job_id = message["job_id"]
@@ -140,7 +141,7 @@ async def process_job(message: dict, redis_client: redis.Redis) -> dict:
         decomposed = len(subproblems) > 1
 
         solution = VRPSolution(strategy="decomposition" if decomposed else "or_tools")
-        geometries: dict[str, dict] = {}
+        geometries: dict[str, dict[str, Any]] = {}
         used_osrm = True
         for sub in subproblems:
             sub_solution, sub_osrm, sub_geom = await _solve_one(sub, redis_client)
@@ -172,7 +173,7 @@ async def process_job(message: dict, redis_client: redis.Redis) -> dict:
         }
 
 
-async def _publish_result(redis_client: redis.Redis, result: dict) -> None:
+async def _publish_result(redis_client: redis.Redis, result: dict[str, Any]) -> None:
     await redis_client.set(
         RESULT_KEY.format(job_id=result["job_id"]), json.dumps(result), ex=RESULT_TTL_S
     )

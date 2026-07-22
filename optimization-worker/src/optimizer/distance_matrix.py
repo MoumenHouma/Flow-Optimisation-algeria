@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 import redis.asyncio as redis
@@ -156,12 +157,14 @@ async def osrm_healthy(osrm_url: str | None = None, timeout: float = 5.0) -> boo
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.get(url)
             resp.raise_for_status()
-            return resp.json().get("code") == "Ok"
+            return bool(resp.json().get("code") == "Ok")
     except (httpx.HTTPError, ValueError):
         return False
 
 
-async def osrm_route_geometry(points: list[GeoPoint], osrm_url: str | None = None) -> dict | None:
+async def osrm_route_geometry(
+    points: list[GeoPoint], osrm_url: str | None = None
+) -> dict[str, Any] | None:
     """Return the road-path GeoJSON LineString for an ordered point list, or None.
 
     Calls OSRM /route with overview=full & geometries=geojson. Any failure
