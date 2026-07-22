@@ -30,7 +30,7 @@ export function mockFetch(handlers: Record<string, Handler>) {
     const handler = handlers[`${method} ${pathname}`] as Handler | undefined;
     const res: MockResponse = handler !== undefined ? handler() : { status: 404 };
     const status = res.status ?? 200;
-    const body = res.body ?? {};
+    const body = "body" in res ? res.body : {}; // preserve an explicit null body
     return {
       ok: status >= 200 && status < 300,
       status,

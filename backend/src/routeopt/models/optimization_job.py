@@ -20,6 +20,16 @@ class OptimizationJob(UUIDPrimaryKey, Base):
     requested_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
+    # Set on trigger='reoptimize' jobs: the live route whose remaining stops are
+    # being re-planned (F9). Null for a fresh optimization that creates routes.
+    # use_alter: routes.optimization_job_id already points here, so this back-FK
+    # forms a cycle — emit it as a separate ALTER so create_all/drop_all can sort.
+    reoptimize_route_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "routes.id", ondelete="SET NULL", use_alter=True, name="fk_optjob_reoptimize_route"
+        ),
+    )
     trigger: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
     input_hash: Mapped[str | None] = mapped_column(String(64))

@@ -1,13 +1,26 @@
-import { useState } from "react";
-import { useQueries } from "@tanstack/react-query";
-import { FileText, Sheet } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { FileText, RefreshCw, Sheet } from "lucide-react";
 
+import { useOptimizationJob, useReoptimize } from "@/api/optimization";
 import { RouteMap } from "@/components/RouteMap";
 import { apiFetch } from "@/lib/api-client";
 import { downloadRouteExport } from "@/lib/downloads";
 import { formatKm } from "@/lib/format";
 import { routeColor } from "@/lib/route-colors";
 import type { JobResult, RouteResult } from "@/types";
+
+// Best-effort geolocation; resolves to {} if unavailable/denied.
+function currentPosition(): Promise<{ currentLat?: number; currentLon?: number }> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve({});
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ currentLat: p.coords.latitude, currentLon: p.coords.longitude }),
+      () => resolve({}),
+      { timeout: 5000 },
+    );
+  });
+}
 
 // Optimized-result view: summary + map + per-route stop lists (docs/DESIGN.md §3.3).
 export function RouteResultPanel({ job }: { job: JobResult }) {
@@ -47,6 +60,22 @@ export function RouteResultPanel({ job }: { job: JobResult }) {
 
 function RouteCard({ route, index }: { route: RouteResult; index: number }) {
   const [downloading, setDownloading] = useState<"pdf" | "xlsx" | null>(null);
+  const queryClient = useQueryClient();
+  const reoptimize = useReoptimize();
+  const [reoptJobId, setReoptJobId] = useState<string | null>(null);
+  const reoptJob = useOptimizationJob(reoptJobId);
+  const reoptimizing = reoptimize.isPending || reoptJobId !== null;
+
+  // When the re-optimization job settles, refetch this route (now re-sequenced).
+  useEffect(() => {
+    const status = reoptJob.data?.status;
+    if (status === "completed" || status === "failed") {
+      if (status === "completed") {
+        void queryClient.invalidateQueries({ queryKey: ["route", route.id] });
+      }
+      setReoptJobId(null);
+    }
+  }, [reoptJob.data?.status, queryClient, route.id]);
 
   const download = async (format: "pdf" | "xlsx") => {
     setDownloading(format);
@@ -55,6 +84,12 @@ function RouteCard({ route, index }: { route: RouteResult; index: number }) {
     } finally {
       setDownloading(null);
     }
+  };
+
+  const onReoptimize = async () => {
+    const pos = await currentPosition();
+    const res = await reoptimize.mutateAsync({ routeId: route.id, ...pos });
+    setReoptJobId(res.job_id);
   };
 
   return (
@@ -72,6 +107,17 @@ function RouteCard({ route, index }: { route: RouteResult; index: number }) {
           <span className="font-mono text-sm text-neutral-500">
             {formatKm(route.total_distance_m)} · {route.stops.length} arrêts
           </span>
+          <button
+            onClick={onReoptimize}
+            disabled={reoptimizing}
+            className="inline-flex items-center gap-1 rounded-lg border border-neutral-300 px-2 py-1 text-xs font-medium hover:bg-neutral-50 disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${reoptimizing ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />{" "}
+            Ré-optimiser
+          </button>
           <button
             onClick={() => download("pdf")}
             disabled={downloading !== null}

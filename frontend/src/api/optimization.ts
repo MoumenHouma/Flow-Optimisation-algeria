@@ -22,6 +22,23 @@ export function useOptimize() {
   });
 }
 
+interface ReoptimizeInput {
+  routeId: string;
+  currentLat?: number;
+  currentLon?: number;
+}
+
+// Re-plan a live route's remaining stops (F9). Returns a job id to poll.
+export function useReoptimize() {
+  return useMutation({
+    mutationFn: ({ routeId, currentLat, currentLon }: ReoptimizeInput) =>
+      apiFetch<OptimizeResponse>(`/api/v1/routes/${routeId}/reoptimize`, {
+        method: "POST",
+        body: JSON.stringify({ current_lat: currentLat ?? null, current_lon: currentLon ?? null }),
+      }),
+  });
+}
+
 // Poll a job until it completes/fails (docs/RULES.md §3.2 polling pattern).
 export function useOptimizationJob(jobId: string | null) {
   return useQuery({

@@ -7,10 +7,12 @@ import {
   type VehicleFormErrors,
   type VehicleFormValues,
 } from "@/lib/vehicle-form";
-import type { VehicleDraft } from "@/types";
+import type { Depot, VehicleDraft } from "@/types";
 
 interface VehicleFormProps {
   initial?: VehicleFormValues;
+  initialDepotId?: string | null;
+  depots?: Depot[];
   submitLabel: string;
   submitting?: boolean;
   onSubmit: (draft: VehicleDraft) => void;
@@ -27,6 +29,8 @@ const TYPE_LABELS: Record<string, string> = {
 // Reused for both add and edit (docs/DESIGN.md §2.4 form patterns).
 export function VehicleForm({
   initial = EMPTY_VEHICLE_FORM,
+  initialDepotId = null,
+  depots = [],
   submitLabel,
   submitting = false,
   onSubmit,
@@ -34,16 +38,34 @@ export function VehicleForm({
 }: VehicleFormProps) {
   const [values, setValues] = useState<VehicleFormValues>(initial);
   const [errors, setErrors] = useState<VehicleFormErrors>({});
+  const [depotId, setDepotId] = useState<string>(initialDepotId ?? "");
 
   const set = (key: keyof VehicleFormValues) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setValues((v) => ({ ...v, [key]: e.target.value }));
+
+  // Picking a saved depot fills the coordinates (so the form validates) and
+  // makes that depot the source of truth on submit (F12).
+  const onPickDepot = (id: string) => {
+    setDepotId(id);
+    const depot = depots.find((d) => d.id === id);
+    if (depot) {
+      setValues((v) => ({
+        ...v,
+        lat: String(depot.location.lat),
+        lon: String(depot.location.lon),
+        depot_address: depot.address,
+      }));
+    }
+  };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const { draft, errors: errs } = parseVehicleForm(values);
     setErrors(errs);
-    if (draft) onSubmit(draft);
+    if (draft) onSubmit(depotId ? { ...draft, depot_id: depotId } : draft);
   };
+
+  const usingDepot = depotId !== "";
 
   return (
     <form onSubmit={handleSubmit} className="rounded-lg border border-neutral-200 bg-white p-4">
@@ -65,7 +87,11 @@ export function VehicleForm({
           </select>
         </Field>
         <Field label="Immatriculation">
-          <input className={inputCls} value={values.license_plate} onChange={set("license_plate")} />
+          <input
+            className={inputCls}
+            value={values.license_plate}
+            onChange={set("license_plate")}
+          />
         </Field>
         <Field label="Capacité poids (kg)" error={errors.capacity_weight}>
           <input
@@ -83,14 +109,48 @@ export function VehicleForm({
             onChange={set("capacity_volume")}
           />
         </Field>
+        {depots.length > 0 && (
+          <Field label="Dépôt enregistré">
+            <select
+              className={inputCls}
+              value={depotId}
+              aria-label="Dépôt enregistré"
+              onChange={(e) => onPickDepot(e.target.value)}
+            >
+              <option value="">— Saisie manuelle —</option>
+              {depots.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Adresse du dépôt" error={errors.depot_address}>
-          <input className={inputCls} value={values.depot_address} onChange={set("depot_address")} />
+          <input
+            className={inputCls}
+            value={values.depot_address}
+            onChange={set("depot_address")}
+            disabled={usingDepot}
+          />
         </Field>
         <Field label="Dépôt — latitude" error={errors.lat}>
-          <input className={inputCls} value={values.lat} onChange={set("lat")} placeholder="36.7538" />
+          <input
+            className={inputCls}
+            value={values.lat}
+            onChange={set("lat")}
+            placeholder="36.7538"
+            disabled={usingDepot}
+          />
         </Field>
         <Field label="Dépôt — longitude" error={errors.lon}>
-          <input className={inputCls} value={values.lon} onChange={set("lon")} placeholder="3.0588" />
+          <input
+            className={inputCls}
+            value={values.lon}
+            onChange={set("lon")}
+            placeholder="3.0588"
+            disabled={usingDepot}
+          />
         </Field>
       </div>
 

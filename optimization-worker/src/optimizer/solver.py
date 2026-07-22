@@ -1,7 +1,9 @@
 """VRP solver wrapping OR-Tools with a fallback (docs/RULES.md §2.2, ARCHITECTURE §2.3).
 
-Node 0 is the depot; nodes 1..N map to problem.deliveries[node-1]. Dimensions:
-Distance (minimize), Time (+slack for time windows), Capacity (unary demand).
+Nodes 0..D-1 are depots and D..D+N-1 map to problem.deliveries[node-D] (F12
+multi-dépôt: each vehicle starts and ends at its own depot node; D=1 is the
+classic single-depot case). Dimensions: Distance (minimize), Time (+slack for
+time windows), Capacity (unary demand).
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from optimizer.models import (
     VehicleRoute,
     VRPProblem,
     VRPSolution,
+    depot_layout,
 )
 
 
@@ -50,11 +53,15 @@ class VRPSolver:
         return params
 
     def _solve_with_ortools(self, problem: VRPProblem, matrix: DistanceMatrix) -> VRPSolution:
-        num_nodes = len(problem.deliveries) + 1  # +1 depot
+        depot_points, depot_of_vehicle = depot_layout(problem)
+        num_depots = len(depot_points)
+        num_nodes = num_depots + len(problem.deliveries)
         num_vehicles = len(problem.vehicles)
-        depot_index = 0
 
-        manager = pywrapcp.RoutingIndexManager(num_nodes, num_vehicles, depot_index)
+        # Each vehicle starts and ends at its own depot node (F12 multi-dépôt).
+        manager = pywrapcp.RoutingIndexManager(
+            num_nodes, num_vehicles, depot_of_vehicle, depot_of_vehicle
+        )
         routing = pywrapcp.RoutingModel(manager)
 
         # --- Distance dimension (objective) ---
@@ -70,7 +77,7 @@ class VRPSolver:
 
             def demand_cb(from_index: int) -> int:
                 node = manager.IndexToNode(from_index)
-                return 0 if node == depot_index else int(problem.deliveries[node - 1].demand)
+                return 0 if node < num_depots else int(problem.deliveries[node - num_depots].demand)
 
             demand_idx = routing.RegisterUnaryTransitCallback(demand_cb)
             routing.AddDimensionWithVehicleCapacity(
@@ -86,13 +93,13 @@ class VRPSolver:
 
             def time_cb(from_index: int, to_index: int) -> int:
                 f, t = manager.IndexToNode(from_index), manager.IndexToNode(to_index)
-                service = 0 if f == depot_index else problem.deliveries[f - 1].service_time
+                service = 0 if f < num_depots else problem.deliveries[f - num_depots].service_time
                 return int(matrix.durations[f][t]) + service
 
             time_idx = routing.RegisterTransitCallback(time_cb)
             routing.AddDimension(time_idx, 86400, 86400, False, "Time")
             time_dim = routing.GetDimensionOrDie("Time")
-            for node, delivery in enumerate(problem.deliveries, start=1):
+            for node, delivery in enumerate(problem.deliveries, start=num_depots):
                 if delivery.time_window:
                     index = manager.NodeToIndex(node)
                     time_dim.CumulVar(index).SetRange(*delivery.time_window)
@@ -102,12 +109,12 @@ class VRPSolver:
             # No solution within the time limit -> caller applies fallback.
             raise ORToolsTimeoutError("OR-Tools returned no solution within time limit")
 
-        return self._extract_solution(problem, matrix, manager, routing, solution)
+        return self._extract_solution(problem, num_depots, manager, routing, solution)
 
     def _extract_solution(
         self,
         problem: VRPProblem,
-        matrix: DistanceMatrix,
+        num_depots: int,
         manager: pywrapcp.RoutingIndexManager,
         routing: pywrapcp.RoutingModel,
         assignment: pywrapcp.Assignment,
@@ -120,9 +127,11 @@ class VRPSolver:
             seq = 0
             while not routing.IsEnd(index):
                 node = manager.IndexToNode(index)
-                if node != 0:  # skip depot
+                if node >= num_depots:  # skip depot nodes
                     stops.append(
-                        RouteStop(delivery_id=problem.deliveries[node - 1].id, sequence=seq)
+                        RouteStop(
+                            delivery_id=problem.deliveries[node - num_depots].id, sequence=seq
+                        )
                     )
                     seq += 1
                 prev = index

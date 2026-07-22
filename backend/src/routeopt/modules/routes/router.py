@@ -12,6 +12,7 @@ from routeopt.modules.routes.schemas import (
     JobOut,
     OptimizeRequest,
     OptimizeResponse,
+    ReoptimizeRequest,
     RouteOut,
     RouteStopOut,
 )
@@ -42,6 +43,25 @@ async def optimize(
         job_id=job_id,
         status=JobStatus.PENDING,
         estimated_duration_ms=RoutesService.estimate_duration_ms(delivery_count),
+    )
+
+
+@router.post("/{route_id}/reoptimize", response_model=OptimizeResponse, status_code=202)
+async def reoptimize(
+    route_id: str,
+    payload: ReoptimizeRequest,
+    session: SessionDep,
+    user: Annotated[CurrentUser, Depends(require_roles("admin", "manager"))],
+    _: Annotated[None, Depends(rate_limiter)],
+) -> OptimizeResponse:
+    """Re-plan a live route's remaining stops (F9). Returns a job id; poll /jobs/{id}."""
+    job_id, count = await RoutesService(session).submit_reoptimize_job(
+        user.company_id, user.user_id, route_id, payload
+    )
+    return OptimizeResponse(
+        job_id=job_id,
+        status=JobStatus.PENDING,
+        estimated_duration_ms=RoutesService.estimate_duration_ms(count),
     )
 
 

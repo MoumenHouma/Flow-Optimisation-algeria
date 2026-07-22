@@ -156,6 +156,26 @@ CREATE TABLE api_keys (
 CREATE INDEX idx_api_keys_company ON api_keys(company_id) WHERE revoked_at IS NULL;
 ```
 
+### 3.6 `webhooks`
+
+Abonnements webhook sortants (F10). RouteOpt POST un payload JSON signé
+(HMAC-SHA256 avec `secret`, en-tête `X-RouteOpt-Signature`) à chaque évènement
+listé dans `events` (ex. `delivery.status_changed`, `optimization.completed`).
+
+```sql
+CREATE TABLE webhooks (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id   UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    url          TEXT NOT NULL,
+    secret       VARCHAR(64) NOT NULL, -- signe le payload, jamais renvoyé en clair après création
+    events       VARCHAR(255) NOT NULL, -- liste d'évènements séparés par des virgules
+    active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_webhooks_company ON webhooks(company_id);
+```
+
 ### 3.5 `audit_log`
 
 Journal d'audit immuable (RULES §8.1 "Insufficient Logging → audit trail" ; conformité
@@ -416,6 +436,7 @@ CREATE TABLE optimization_jobs (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id     UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     requested_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    reoptimize_route_id UUID REFERENCES routes(id) ON DELETE SET NULL, -- F9: route re-planned in place
     trigger        VARCHAR(20) NOT NULL DEFAULT 'manual', -- manual | reoptimize | scheduled
     status         VARCHAR(50) NOT NULL DEFAULT 'pending',
     input_hash     VARCHAR(64), -- hash des paramètres d'entrée, pour cache/déduplication

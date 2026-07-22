@@ -24,6 +24,7 @@ from optimizer.models import (
     OptimizationError,
     Vehicle,
     VRPProblem,
+    depot_layout,
 )
 from optimizer.postprocessor import solution_to_result
 from optimizer.preprocessor import needs_decomposition, validate
@@ -89,7 +90,9 @@ async def process_job(message: dict, redis_client: redis.Redis) -> dict:
             # TODO: cluster -> solve sub-problems in parallel -> merge (ARCHITECTURE §4.1).
             pass
 
-        points = [problem.depot] + [GeoPoint(d.lat, d.lon) for d in problem.deliveries]
+        # Matrix nodes: depot(s) first, then deliveries — same layout the solver uses.
+        depot_points, _ = depot_layout(problem)
+        points = depot_points + [GeoPoint(d.lat, d.lon) for d in problem.deliveries]
         matrix, used_osrm = await build_matrix_with_fallback(points, redis_client)
 
         solver = VRPSolver(time_limit_seconds=_time_limit_for(len(problem.deliveries)))
@@ -101,9 +104,11 @@ async def process_job(message: dict, redis_client: redis.Redis) -> dict:
         geometries: dict[str, dict] = {}
         if used_osrm:
             coords = {d.id: GeoPoint(d.lat, d.lon) for d in problem.deliveries}
+            depot_by_vehicle = {v.id: v.depot for v in problem.vehicles}
             for route in solution.routes:
                 ordered = sorted(route.stops, key=lambda s: s.sequence)
-                pts = [problem.depot, *[coords[s.delivery_id] for s in ordered], problem.depot]
+                home = depot_by_vehicle.get(route.vehicle_id, problem.depot)
+                pts = [home, *[coords[s.delivery_id] for s in ordered], home]
                 geom = await osrm_route_geometry(pts)
                 if geom is not None:
                     geometries[route.vehicle_id] = geom
