@@ -18,6 +18,7 @@ import redis.asyncio as redis
 
 from optimizer.config import get_settings
 from optimizer.distance_matrix import build_matrix_with_fallback, osrm_route_geometry
+from optimizer.costs import ObjectiveWeights
 from optimizer.models import (
     Delivery,
     GeoPoint,
@@ -63,16 +64,25 @@ def _build_problem(payload: dict) -> VRPProblem:
             id=v["id"],
             capacity=v["capacity"],
             depot=GeoPoint(v["depot"]["lat"], v["depot"]["lon"]),
+            vehicle_type=v.get("vehicle_type", "car"),
         )
         for v in payload["vehicles"]
     ]
     constraints = payload.get("constraints", {})
+    obj = payload.get("objective") or {}
+    objective = ObjectiveWeights(
+        distance=obj.get("distance", 1.0),
+        time=obj.get("time", 0.0),
+        fuel=obj.get("fuel", 0.0),
+        co2=obj.get("co2", 0.0),
+    )
     return VRPProblem(
         depot=depot,
         deliveries=deliveries,
         vehicles=vehicles,
         respect_time_windows=constraints.get("respect_time_windows", True),
         respect_capacity=constraints.get("respect_capacity", True),
+        objective=objective,
     )
 
 

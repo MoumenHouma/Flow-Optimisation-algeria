@@ -90,6 +90,7 @@ class RoutesService:
             "company_id": company_id,
             "depot": depot,
             "constraints": payload.constraints.model_dump(),
+            "objective": payload.objective.model_dump(),
             "deliveries": [
                 {
                     "id": str(d.id),
@@ -106,6 +107,7 @@ class RoutesService:
                 {
                     "id": str(v.id),
                     "capacity": float(v.capacity_weight),
+                    "vehicle_type": v.vehicle_type,
                     "depot": {"lat": float(v.depot_lat), "lon": float(v.depot_lon)},
                 }
                 for v in vehicles
@@ -155,6 +157,7 @@ class RoutesService:
             "company_id": company_id,
             "depot": depot,
             "constraints": payload.constraints.model_dump(),
+            "objective": payload.objective.model_dump(),
             "deliveries": [
                 {
                     "id": str(d.id),
@@ -171,6 +174,7 @@ class RoutesService:
                 {
                     "id": str(vehicle.id),
                     "capacity": float(vehicle.capacity_weight),
+                    "vehicle_type": vehicle.vehicle_type,
                     "depot": depot,
                 }
             ],
@@ -273,6 +277,8 @@ class RoutesService:
         job.result = {
             "total_distance_m": message.get("total_distance_m"),
             "total_time_s": message.get("total_time_s"),
+            "total_fuel_l": message.get("total_fuel_l"),
+            "total_co2_kg": message.get("total_co2_kg"),
             "objective_value": message.get("objective_value"),
             "used_osrm": message.get("used_osrm"),
             "is_suboptimal": message.get("is_suboptimal"),
@@ -344,6 +350,8 @@ class RoutesService:
         job.result = {
             "total_distance_m": message.get("total_distance_m"),
             "total_time_s": message.get("total_time_s"),
+            "total_fuel_l": message.get("total_fuel_l"),
+            "total_co2_kg": message.get("total_co2_kg"),
             "objective_value": message.get("objective_value"),
             "used_osrm": message.get("used_osrm"),
             "is_suboptimal": message.get("is_suboptimal"),

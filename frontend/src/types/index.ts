@@ -247,6 +247,8 @@ export interface JobResult {
   solver_strategy?: string;
   duration_ms?: number;
   total_distance_m?: number;
+  total_fuel_l?: number;
+  total_co2_kg?: number;
   route_ids: string[];
   error_message?: string;
 }

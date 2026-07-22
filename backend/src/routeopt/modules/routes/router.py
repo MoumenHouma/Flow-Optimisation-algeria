@@ -82,6 +82,8 @@ async def get_job(
         solver_strategy=job.solver_strategy,
         duration_ms=job.duration_ms,
         total_distance_m=(job.result or {}).get("total_distance_m") if job.result else None,
+        total_fuel_l=(job.result or {}).get("total_fuel_l") if job.result else None,
+        total_co2_kg=(job.result or {}).get("total_co2_kg") if job.result else None,
         route_ids=route_ids,
         error_message=job.error_message,
     )

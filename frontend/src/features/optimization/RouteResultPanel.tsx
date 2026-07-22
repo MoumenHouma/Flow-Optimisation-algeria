@@ -40,6 +40,12 @@ export function RouteResultPanel({ job }: { job: JobResult }) {
           <Metric label="Distance totale" value={formatKm(job.total_distance_m)} />
           <Metric label="Tournées" value={String(job.route_ids.length)} />
           <Metric label="Stratégie" value={job.solver_strategy ?? "—"} />
+          {job.total_fuel_l != null && (
+            <Metric label="Carburant" value={`${job.total_fuel_l.toFixed(1)} L`} />
+          )}
+          {job.total_co2_kg != null && (
+            <Metric label="CO₂" value={`${job.total_co2_kg.toFixed(1)} kg`} />
+          )}
         </dl>
       </div>
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from optimizer.costs import ObjectiveWeights
+
 
 class OptimizationError(Exception):
     """Raised when a problem is infeasible or the solver fails."""
@@ -35,6 +37,7 @@ class Vehicle:
     id: str
     capacity: float
     depot: GeoPoint
+    vehicle_type: str = "car"  # drives fuel/CO2 factors (F14)
 
 
 @dataclass
@@ -44,6 +47,7 @@ class VRPProblem:
     vehicles: list[Vehicle]
     respect_time_windows: bool = True
     respect_capacity: bool = True
+    objective: ObjectiveWeights = field(default_factory=ObjectiveWeights)  # F14
 
 
 def depot_layout(problem: VRPProblem) -> tuple[list[GeoPoint], list[int]]:
@@ -82,6 +86,8 @@ class VehicleRoute:
     stops: list[RouteStop]
     total_distance_m: float = 0
     total_time_s: int = 0
+    fuel_l: float = 0  # F14
+    co2_kg: float = 0  # F14
 
 
 @dataclass
@@ -89,6 +95,8 @@ class VRPSolution:
     routes: list[VehicleRoute] = field(default_factory=list)
     total_distance_m: float = 0
     total_time_s: int = 0
+    total_fuel_l: float = 0  # F14
+    total_co2_kg: float = 0  # F14
     objective_value: int = 0
     strategy: str = "or_tools"  # or_tools | greedy_fallback | decomposition
     is_suboptimal: bool = False

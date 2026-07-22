@@ -6,6 +6,7 @@ OR-Tools times out or returns no solution, flagged as sub-optimal.
 
 from __future__ import annotations
 
+from optimizer.costs import co2_g, factors_for, fuel_ml
 from optimizer.distance_matrix import DistanceMatrix
 from optimizer.models import RouteStop, VehicleRoute, VRPProblem, VRPSolution, depot_layout
 
@@ -50,10 +51,18 @@ def greedy_nearest_neighbor(problem: VRPProblem, matrix: DistanceMatrix) -> VRPS
             current = nxt
         if stops:
             distance += matrix.distances[current][home]  # return to own depot
-            solution.routes.append(
-                VehicleRoute(vehicle_id=vehicle.id, stops=stops, total_distance_m=distance)
+            factors = factors_for(vehicle.vehicle_type)
+            route = VehicleRoute(
+                vehicle_id=vehicle.id,
+                stops=stops,
+                total_distance_m=distance,
+                fuel_l=round(fuel_ml(distance, factors) / 1000.0, 3),
+                co2_kg=round(co2_g(distance, factors) / 1000.0, 3),
             )
+            solution.routes.append(route)
             solution.total_distance_m += distance
+            solution.total_fuel_l = round(solution.total_fuel_l + route.fuel_l, 3)
+            solution.total_co2_kg = round(solution.total_co2_kg + route.co2_kg, 3)
 
     # TODO: 2-opt refinement per route to trim crossings.
     return solution

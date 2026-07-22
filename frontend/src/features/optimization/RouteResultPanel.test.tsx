@@ -13,6 +13,8 @@ const JOB: JobResult = {
   status: "completed",
   solver_strategy: "or_tools",
   total_distance_m: 3000,
+  total_fuel_l: 1.8,
+  total_co2_kg: 4.6,
   route_ids: ["r1"],
 };
 
@@ -46,6 +48,9 @@ describe("RouteResultPanel re-optimize", () => {
     renderWithProviders(<RouteResultPanel job={JOB} />);
 
     await waitFor(() => expect(screen.getByText(/véhicule 1/i)).toBeInTheDocument());
+    // Multi-objective cost breakdown (F14).
+    expect(screen.getByText("1.8 L")).toBeInTheDocument();
+    expect(screen.getByText("4.6 kg")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /ré-optimiser/i }));
 
