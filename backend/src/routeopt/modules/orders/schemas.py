@@ -21,6 +21,9 @@ class DeliveryIn(BaseModel):
     weight: float = Field(0, ge=0)
     volume: float = Field(0, ge=0)
     priority: int = Field(1, ge=1, le=3)
+    # F17 cash-on-delivery: order total due at the stop (NULL/0 = prepaid).
+    cod_amount: float | None = Field(None, ge=0)
+    cod_currency: str = "DZD"
 
 
 class DeliveryOut(BaseModel):
@@ -34,6 +37,8 @@ class DeliveryOut(BaseModel):
     weight: float
     volume: float
     priority: int
+    cod_amount: float | None
+    cod_currency: str
 
     @classmethod
     def from_model(cls, d: Any) -> "DeliveryOut":
@@ -48,6 +53,8 @@ class DeliveryOut(BaseModel):
             weight=float(d.weight),
             volume=float(d.volume),
             priority=d.priority,
+            cod_amount=float(d.cod_amount) if d.cod_amount is not None else None,
+            cod_currency=d.cod_currency,
         )
 
 

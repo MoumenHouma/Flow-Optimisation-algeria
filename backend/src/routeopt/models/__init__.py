@@ -8,6 +8,7 @@ audit_log, refresh_tokens) are documented in SCHEMA.md and added as features lan
 from routeopt.models.api_key import ApiKey
 from routeopt.models.audit_log import AuditLog
 from routeopt.models.base import Base
+from routeopt.models.cod_payment import CodPayment
 from routeopt.models.company import Company
 from routeopt.models.delivery import Delivery
 from routeopt.models.delivery_status_history import DeliveryStatusHistory
@@ -26,6 +27,7 @@ __all__ = [
     "ApiKey",
     "AuditLog",
     "Base",
+    "CodPayment",
     "Company",
     "Delivery",
     "DeliveryStatusHistory",

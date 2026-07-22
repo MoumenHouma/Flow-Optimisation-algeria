@@ -5,6 +5,7 @@ import {
   Truck,
   Map,
   BarChart3,
+  Banknote,
   Plug,
   ScrollText,
   LogOut,
@@ -24,6 +25,7 @@ const NAV = [
   { to: "/fleet", label: "Flotte", icon: Truck, end: false },
   { to: "/territories", label: "Territoires", icon: Map, end: false },
   { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
+  { to: "/cod", label: "Encaissements", icon: Banknote, end: false },
   { to: "/developers", label: "Développeurs", icon: Plug, end: false },
   { to: "/audit-log", label: "Audit", icon: ScrollText, end: false },
 ];

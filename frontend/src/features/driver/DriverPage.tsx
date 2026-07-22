@@ -31,8 +31,13 @@ export function DriverPage() {
   };
 
   // Marking delivered requires proof; failure is recorded immediately.
-  const markDelivered = () => {
-    update.mutate({ deliveryId: proofStop!.delivery_id, status: "delivered" });
+  // For a COD stop the ProofSheet reports the cash collected (F17).
+  const markDelivered = (cod?: { cod_collected: number }) => {
+    update.mutate({
+      deliveryId: proofStop!.delivery_id,
+      status: "delivered",
+      ...(cod ? { cod_collected: cod.cod_collected, cod_method: "cash" as const } : {}),
+    });
     setProofStop(null);
   };
 

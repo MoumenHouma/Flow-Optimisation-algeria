@@ -27,12 +27,17 @@ export function ProofSheet({
 }: {
   stop: DriverStop;
   onCancel: () => void;
-  onConfirmed: () => void;
+  // F17: reports the cash collected when the stop is a COD delivery.
+  onConfirmed: (cod?: { cod_collected: number }) => void;
 }) {
   const upload = useUploadProof();
   const sigRef = useRef<SignaturePadHandle>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const isCod = stop.cod_amount != null;
+  const [collected, setCollected] = useState<string>(
+    stop.cod_amount != null ? String(stop.cod_amount) : "",
+  );
 
   const onPickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -53,7 +58,7 @@ export function ProofSheet({
       signature,
       ...pos,
     });
-    onConfirmed();
+    onConfirmed(isCod ? { cod_collected: Number(collected) || 0 } : undefined);
   };
 
   return (
@@ -71,6 +76,23 @@ export function ProofSheet({
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         <p className="text-sm text-neutral-500">📍 {stop.address}</p>
+
+        {isCod && (
+          <div className="rounded-lg border border-warning/40 bg-warning/10 p-3">
+            <label htmlFor="cod-collected" className="text-sm font-medium text-neutral-700">
+              💵 Encaissement (à collecter : {stop.cod_amount} {stop.cod_currency})
+            </label>
+            <input
+              id="cod-collected"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              value={collected}
+              onChange={(e) => setCollected(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 font-mono text-lg"
+            />
+          </div>
+        )}
 
         <div>
           <label

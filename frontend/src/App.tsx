@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
+import { CodReconciliationPage } from "@/features/cod/CodReconciliationPage";
 import { AuditLogPage } from "@/features/settings/AuditLogPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { DriverPage } from "@/features/driver/DriverPage";
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/fleet" element={<FleetPage />} />
         <Route path="/territories" element={<TerritoriesPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/cod" element={<CodReconciliationPage />} />
         <Route path="/developers" element={<DevelopersPage />} />
         <Route path="/audit-log" element={<AuditLogPage />} />
       </Route>

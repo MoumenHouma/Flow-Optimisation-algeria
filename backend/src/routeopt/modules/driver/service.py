@@ -1,7 +1,8 @@
 """Driver runtime logic (F8): fetch my route, update delivery status + history."""
 
 import uuid
-from datetime import time
+from datetime import UTC, datetime, time
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from routeopt.core.exceptions import NotFoundError, ValidationError
 from routeopt.core.storage import Storage
 from routeopt.core.webhooks import WebhookDispatcher
+from routeopt.models.cod_payment import CodPayment
 from routeopt.models.delivery import Delivery
 from routeopt.models.delivery_status_history import DeliveryStatusHistory
 from routeopt.models.proof_of_delivery import ProofOfDelivery
@@ -80,6 +82,8 @@ class DriverService:
                     time_window_start=_hm(d.time_window_start) if d else None,
                     time_window_end=_hm(d.time_window_end) if d else None,
                     status=d.status if d else "pending",
+                    cod_amount=(float(d.cod_amount) if d and d.cod_amount is not None else None),
+                    cod_currency=d.cod_currency if d else "DZD",
                 )
             )
 
@@ -135,11 +139,15 @@ class DriverService:
         if route.status in ("planned", "dispatched"):
             route.status = "in_progress"
 
+        # F17: on delivery, record the cash collected for a COD stop.
+        cod = await self._record_cod(delivery, route, user_id, payload)
+
         await self.session.commit()
         await self.session.refresh(delivery)
 
         # Notify partner integrations (F10). Best-effort; never blocks the update.
-        await WebhookDispatcher(self.session).dispatch(
+        dispatcher = WebhookDispatcher(self.session)
+        await dispatcher.dispatch(
             company_id,
             "delivery.status_changed",
             {
@@ -149,7 +157,60 @@ class DriverService:
                 "reason": payload.reason,
             },
         )
+        if cod is not None:
+            await dispatcher.dispatch(
+                company_id,
+                "cod.collected",
+                {
+                    "delivery_id": str(delivery.id),
+                    "order_id": delivery.order_id,
+                    "amount_expected": (
+                        float(cod.amount_expected) if cod.amount_expected is not None else None
+                    ),
+                    "amount_collected": float(cod.amount_collected),
+                    "currency": cod.currency,
+                    "method": cod.method,
+                    "status": cod.status,
+                },
+            )
         return delivery
+
+    async def _record_cod(
+        self, delivery: Delivery, route: Route, user_id: str, payload: StatusUpdate
+    ) -> CodPayment | None:
+        """Upsert the COD reconciliation row for a delivered stop that owes cash.
+
+        Returns the row when one is written (so the caller can fire the webhook),
+        else None. A collected amount short of / over the expected flips the row
+        to ``discrepancy`` for the manager to resolve. Re-reporting overwrites the
+        existing row in place (one record per delivery, uq_cod_delivery).
+        """
+        if payload.status != "delivered" or payload.cod_collected is None:
+            return None
+        if delivery.cod_amount is None and payload.cod_collected == 0:
+            return None  # prepaid stop, nothing to reconcile
+
+        expected = delivery.cod_amount
+        collected = payload.cod_collected
+        status = "collected"
+        if expected is not None and Decimal(str(collected)) != Decimal(str(expected)):
+            status = "discrepancy"
+
+        cod = await self.session.scalar(
+            select(CodPayment).where(CodPayment.delivery_id == delivery.id)
+        )
+        if cod is None:
+            cod = CodPayment(company_id=delivery.company_id, delivery_id=delivery.id)
+            self.session.add(cod)
+        cod.route_id = route.id
+        cod.driver_user_id = uuid.UUID(user_id)
+        cod.amount_expected = expected
+        cod.amount_collected = collected
+        cod.currency = delivery.cod_currency
+        cod.method = payload.cod_method
+        cod.status = status
+        cod.collected_at = datetime.now(UTC)
+        return cod
 
     async def save_proof(
         self,

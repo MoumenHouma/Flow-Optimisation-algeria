@@ -54,6 +54,12 @@ class Delivery(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
     notes: Mapped[str | None] = mapped_column(Text)
+    # F17 cash-on-delivery: the order total the driver must collect at this stop.
+    # Set at import (order total), NOT at delivery — reconciliation compares the
+    # cash actually collected (cod_payments) against this expected amount.
+    # NULL = no cash due (prepaid). PRD §4.1 "paiement à la livraison".
+    cod_amount: Mapped[float | None] = mapped_column(Numeric(12, 2))
+    cod_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="DZD")
 
     __table_args__ = (
         CheckConstraint("priority IN (1,2,3)", name="check_priority"),
@@ -70,6 +76,7 @@ class Delivery(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
         CheckConstraint("lon IS NULL OR lon BETWEEN -180 AND 180", name="check_lon"),
         CheckConstraint("weight >= 0", name="check_weight"),
         CheckConstraint("volume >= 0", name="check_volume"),
+        CheckConstraint("cod_amount IS NULL OR cod_amount >= 0", name="check_cod_amount"),
         CheckConstraint(
             "time_window_start IS NULL OR time_window_end IS NULL "
             "OR time_window_start <= time_window_end",

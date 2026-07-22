@@ -14,12 +14,17 @@ export function useMyRoute() {
   });
 }
 
+export type CodMethod = "cash" | "baridimob" | "ccp" | "none";
+
 interface StatusInput {
   deliveryId: string;
   status: DriverStatus;
   reason?: string;
   lat?: number;
   lon?: number;
+  // F17: cash collected on a delivered COD stop.
+  cod_collected?: number;
+  cod_method?: CodMethod;
 }
 
 export function useUpdateStatus() {

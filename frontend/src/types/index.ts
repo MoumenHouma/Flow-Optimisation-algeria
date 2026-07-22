@@ -102,6 +102,8 @@ export interface DriverStop {
   time_window_start: string | null;
   time_window_end: string | null;
   status: DeliveryStatus;
+  cod_amount: number | null;
+  cod_currency: string;
 }
 
 export interface DriverRoute {
@@ -233,6 +235,39 @@ export interface Performance {
   avg_distance_per_route_m: number;
   failure_reasons: FailureReason[];
   drivers: DriverStat[];
+}
+
+// F17 cash-on-delivery reconciliation.
+export type CodStatus = "pending" | "collected" | "reconciled" | "discrepancy";
+
+export interface CodPayment {
+  id: string;
+  delivery_id: string;
+  order_id: string | null;
+  route_id: string | null;
+  driver_user_id: string | null;
+  amount_expected: number | null;
+  amount_collected: number;
+  currency: string;
+  method: string;
+  status: CodStatus;
+  collected_at: string | null;
+}
+
+export interface CodSummaryRow {
+  driver_user_id: string | null;
+  day: string;
+  count: number;
+  total_expected: number;
+  total_collected: number;
+  discrepancies: number;
+}
+
+export interface CodSummary {
+  rows: CodSummaryRow[];
+  total_expected: number;
+  total_collected: number;
+  discrepancies: number;
 }
 
 export interface DashboardSummary {

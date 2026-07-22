@@ -44,6 +44,8 @@ class OrdersService:
                 weight=item.weight,
                 volume=item.volume,
                 priority=item.priority,
+                cod_amount=item.cod_amount,
+                cod_currency=item.cod_currency,
             )
             self.session.add(delivery)
             deliveries.append(delivery)
