@@ -4,8 +4,8 @@ Adds ``vehicles.fuel_range_km`` / ``fuel_type`` (range feeds the OR-Tools range
 constraint) and the ``fuel_stations`` table with live availability. PRD §4.1
 "pénurie carburant", docs/SCHEMA.md §10.
 
-Revision ID: 0012_fuel
-Revises: 0011_billing
+Revision ID: 0015_fuel
+Revises: 0014_billing
 Create Date: 2026-07-23
 """
 
@@ -15,8 +15,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0012_fuel"
-down_revision: str | None = "0011_billing"
+revision: str = "0015_fuel"
+down_revision: str | None = "0014_billing"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

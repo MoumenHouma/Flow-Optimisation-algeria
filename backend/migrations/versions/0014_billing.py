@@ -3,8 +3,8 @@
 Records a company's paid plan (subscriptions) and its billing charges
 (invoices, one per YYYY-MM period). Amounts in DZD (PRD §5.1). docs/SCHEMA.md §9.
 
-Revision ID: 0011_billing
-Revises: 0010_cod_payments
+Revision ID: 0014_billing
+Revises: 0013_cod_payments
 Create Date: 2026-07-22
 """
 
@@ -14,8 +14,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0011_billing"
-down_revision: str | None = "0010_cod_payments"
+revision: str = "0014_billing"
+down_revision: str | None = "0013_cod_payments"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

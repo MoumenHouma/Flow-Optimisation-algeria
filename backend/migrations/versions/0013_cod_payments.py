@@ -4,8 +4,8 @@ Adds ``deliveries.cod_amount`` / ``cod_currency`` (order total due at the stop,
 set at import) and the ``cod_payments`` reconciliation table (cash the driver
 actually collected). docs/SCHEMA.md §5.4, PRD §4.1.
 
-Revision ID: 0010_cod_payments
-Revises: 0009_company_branding
+Revision ID: 0013_cod_payments
+Revises: 0012_refresh_token_family
 Create Date: 2026-07-22
 """
 
@@ -15,8 +15,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0010_cod_payments"
-down_revision: str | None = "0009_company_branding"
+revision: str = "0013_cod_payments"
+down_revision: str | None = "0012_refresh_token_family"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
