@@ -270,6 +270,36 @@ export interface CodSummary {
   discrepancies: number;
 }
 
+// F19 SaaS billing + quotas.
+export type Plan = "free" | "starter" | "pro" | "enterprise";
+
+export interface Usage {
+  vehicles: number;
+  max_vehicles: number | null;
+  deliveries_today: number;
+  max_deliveries_per_day: number | null;
+  deliveries_this_month: number;
+}
+
+export interface Billing {
+  plan: Plan;
+  price_da: number;
+  status: string;
+  usage: Usage;
+}
+
+export interface Invoice {
+  id: string;
+  period: string;
+  plan: string;
+  amount_da: number;
+  status: string;
+  method: string | null;
+  reference: string | null;
+  issued_at: string;
+  paid_at: string | null;
+}
+
 export interface DashboardSummary {
   date: string;
   deliveries_total: number;

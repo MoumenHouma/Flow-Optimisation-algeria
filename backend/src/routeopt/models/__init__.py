@@ -13,11 +13,13 @@ from routeopt.models.company import Company
 from routeopt.models.delivery import Delivery
 from routeopt.models.delivery_status_history import DeliveryStatusHistory
 from routeopt.models.depot import Depot
+from routeopt.models.invoice import Invoice
 from routeopt.models.optimization_job import OptimizationJob
 from routeopt.models.proof_of_delivery import ProofOfDelivery
 from routeopt.models.refresh_token import RefreshToken
 from routeopt.models.route import Route, RouteStop
 from routeopt.models.service_time_model import ServiceTimeModel
+from routeopt.models.subscription import Subscription
 from routeopt.models.territory import Territory
 from routeopt.models.user import User
 from routeopt.models.vehicle import Vehicle
@@ -32,12 +34,14 @@ __all__ = [
     "Delivery",
     "DeliveryStatusHistory",
     "Depot",
+    "Invoice",
     "OptimizationJob",
     "ProofOfDelivery",
     "RefreshToken",
     "Route",
     "RouteStop",
     "ServiceTimeModel",
+    "Subscription",
     "Territory",
     "User",
     "Vehicle",

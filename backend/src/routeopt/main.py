@@ -17,6 +17,7 @@ from routeopt.database import get_session
 from routeopt.modules.analytics.router import router as analytics_router
 from routeopt.modules.audit.router import router as audit_router
 from routeopt.modules.auth.router import router as auth_router
+from routeopt.modules.billing.router import router as billing_router
 from routeopt.modules.cod.router import router as cod_router
 from routeopt.modules.company.router import router as company_router
 from routeopt.modules.dashboard.router import router as dashboard_router
@@ -76,6 +77,7 @@ app.include_router(territories_router, prefix="/api/v1")
 app.include_router(company_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 app.include_router(cod_router, prefix="/api/v1")
+app.include_router(billing_router, prefix="/api/v1")
 # Public partner API — key-authed, mounted off /api/public/v1 (F10).
 app.include_router(public_api_router, prefix="/api")
 
