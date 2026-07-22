@@ -2,7 +2,10 @@
 
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEV_SECRET = "dev-insecure-secret-change-me"
 
 
 class Settings(BaseSettings):
@@ -45,8 +48,30 @@ class Settings(BaseSettings):
 
     # CORS / security
     allowed_origins: list[str] = ["http://localhost:5173"]
+    # Symmetric secret used to derive at-rest encryption keys (webhook secrets).
+    secret_key: str = _DEV_SECRET
 
     sentry_dsn: str | None = None
+
+    @model_validator(mode="after")
+    def _guard_production(self) -> "Settings":
+        """Fail fast on insecure defaults outside local/dev (docs/RULES.md §4.3)."""
+        if self.environment == "local":
+            return self
+        problems: list[str] = []
+        if self.debug:
+            problems.append("debug must be false")
+        if self.secret_key == _DEV_SECRET:
+            problems.append("secret_key is the insecure default")
+        if self.s3_access_key == "minioadmin" or self.s3_secret_key == "minioadmin":
+            problems.append("default S3 credentials")
+        if any("localhost" in o or "127.0.0.1" in o for o in self.allowed_origins):
+            problems.append("localhost in allowed_origins")
+        if problems:
+            raise ValueError(
+                f"Unsafe config for environment='{self.environment}': {', '.join(problems)}"
+            )
+        return self
 
 
 @lru_cache

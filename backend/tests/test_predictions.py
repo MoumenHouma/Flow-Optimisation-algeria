@@ -180,4 +180,4 @@ async def test_summary_untrained_and_auth(ctx) -> None:
     )
     drv = {"Authorization": f"Bearer {login.json()['access_token']}"}
     denied = await client.post("/api/v1/predictions/service-time/train", headers=drv)
-    assert denied.status_code == 401
+    assert denied.status_code == 403

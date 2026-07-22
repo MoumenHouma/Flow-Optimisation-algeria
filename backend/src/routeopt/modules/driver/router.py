@@ -27,7 +27,7 @@ async def my_route(
     user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> DriverRouteOut | None:
     """The active route for the vehicle assigned to me (null if none today)."""
-    return await DriverService(session).my_route(user.user_id)
+    return await DriverService(session).my_route(user.user_id, user.company_id)
 
 
 @router.put("/deliveries/{delivery_id}/status", response_model=DeliveryOut)

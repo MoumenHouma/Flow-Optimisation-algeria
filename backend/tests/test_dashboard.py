@@ -3,6 +3,7 @@
 import os
 import uuid
 
+import fakeredis.aioredis
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -15,6 +16,13 @@ from routeopt.models.route import Route
 
 TEST_DB_URL = os.getenv("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+
+
+@pytest_asyncio.fixture(autouse=True)
+def _fake_redis(monkeypatch):
+    # POST /orders is now rate-limited (Redis-backed).
+    client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr("routeopt.core.dependencies.redis_client", client)
 
 
 @pytest_asyncio.fixture

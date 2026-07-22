@@ -32,11 +32,12 @@ class DriverService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def my_route(self, user_id: str) -> DriverRouteOut | None:
+    async def my_route(self, user_id: str, company_id: str) -> DriverRouteOut | None:
         """The current active route for the vehicle assigned to this driver."""
         vehicle = await self.session.scalar(
             select(Vehicle).where(
                 Vehicle.driver_user_id == uuid.UUID(user_id),
+                Vehicle.company_id == uuid.UUID(company_id),  # tenant isolation (M2)
                 Vehicle.deleted_at.is_(None),
             )
         )

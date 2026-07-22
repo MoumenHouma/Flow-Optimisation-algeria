@@ -14,12 +14,16 @@ from fastapi import Depends, Header
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routeopt.core.exceptions import AuthError
+from routeopt.core.dependencies import enforce_fixed_window
+from routeopt.core.exceptions import AuthError, ForbiddenError
 from routeopt.core.security import hash_token
 from routeopt.database import get_session
 from routeopt.models.api_key import ApiKey
 
 _SCOPE_RANK = {"read": 1, "write": 2, "admin": 3}
+
+# Requests/minute per API key (partner integrations, F10). Generous but bounded.
+_API_KEY_RATE_LIMIT = 600
 
 
 @dataclass
@@ -44,6 +48,9 @@ async def get_api_client(
 
     key.last_used_at = now
     await session.commit()
+    # Rate-limit the public API per key (H1) — key-authed requests never hit the
+    # JWT limiter, so cap them here.
+    await enforce_fixed_window(f"apikey:{key.id}", _API_KEY_RATE_LIMIT)
     return ApiClient(company_id=str(key.company_id), scope=key.scope, key_id=str(key.id))
 
 
@@ -53,7 +60,8 @@ def require_scope(minimum: str) -> Callable[[ApiClient], Awaitable[ApiClient]]:
 
     async def _check(client: Annotated[ApiClient, Depends(get_api_client)]) -> ApiClient:
         if _SCOPE_RANK.get(client.scope, 0) < needed:
-            raise AuthError(f"API key requires '{minimum}' scope")
+            # Authenticated key, insufficient scope → 403.
+            raise ForbiddenError(f"API key requires '{minimum}' scope")
         return client
 
     return _check

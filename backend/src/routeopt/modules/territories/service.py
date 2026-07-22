@@ -12,6 +12,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.exceptions import NotFoundError, ValidationError
+from routeopt.core.tenancy import validate_driver
 from routeopt.models.delivery import Delivery
 from routeopt.models.territory import Territory
 from routeopt.models.user import User
@@ -67,7 +68,7 @@ class TerritoryService:
             company_id=uuid.UUID(company_id),
             name=payload.name,
             color=payload.color,
-            driver_user_id=(uuid.UUID(payload.driver_user_id) if payload.driver_user_id else None),
+            driver_user_id=await validate_driver(self.session, company_id, payload.driver_user_id),
         )
         self.session.add(territory)
         await self.session.commit()
@@ -83,8 +84,8 @@ class TerritoryService:
         if payload.color is not None:
             territory.color = payload.color
         # driver_user_id is always assignable (including clearing to null).
-        territory.driver_user_id = (
-            uuid.UUID(payload.driver_user_id) if payload.driver_user_id else None
+        territory.driver_user_id = await validate_driver(
+            self.session, company_id, payload.driver_user_id
         )
         await self.session.commit()
         await self.session.refresh(territory)

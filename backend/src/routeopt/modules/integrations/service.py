@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from routeopt.core.crypto import encrypt
 from routeopt.core.exceptions import NotFoundError, ValidationError
 from routeopt.core.security import hash_token
 from routeopt.models.api_key import ApiKey
@@ -68,7 +69,7 @@ class IntegrationsService:
         webhook = Webhook(
             company_id=uuid.UUID(company_id),
             url=str(payload.url),
-            secret=secret,
+            secret=encrypt(secret),  # stored encrypted; plaintext returned once
             events=",".join(payload.events),
             active=True,
         )

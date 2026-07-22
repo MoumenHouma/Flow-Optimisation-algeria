@@ -23,7 +23,8 @@ class Webhook(Base):
         UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
     )
     url: Mapped[str] = mapped_column(Text, nullable=False)
-    secret: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Encrypted at rest (Fernet); decrypted only to sign outgoing payloads.
+    secret: Mapped[str] = mapped_column(Text, nullable=False)
     events: Mapped[str] = mapped_column(String(255), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
