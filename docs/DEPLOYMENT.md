@@ -77,9 +77,11 @@ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out jwt-private.pe
 openssl rsa -in jwt-private.pem -pubout -out jwt-public.pem
 ```
 
-Montez `jwt-private.pem` / `jwt-public.pem` aux chemins pointés par
-`JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH`. Backend et worker n'ont besoin
-que de ces deux fichiers pour l'auth (le worker n'émet pas de jeton).
+Placez-les dans `infra/secrets/` (git-ignoré) ; l'override de production les
+monte comme secrets Docker aux chemins pointés par `JWT_PRIVATE_KEY_PATH` /
+`JWT_PUBLIC_KEY_PATH` (`/run/secrets/jwt_private_key` / `_public_key`). Backend
+et worker n'ont besoin que de ces deux fichiers pour l'auth (le worker n'émet
+pas de jeton).
 
 ## 3. Base de données & migrations
 
@@ -95,15 +97,19 @@ Vérifiez au préalable le SQL généré d'une nouvelle migration :
 
 ## 4. Build & lancement
 
-Chaque composant a un `Dockerfile`. En s'appuyant sur `docker-compose.yml`
-comme base, un override de production (`docker-compose.prod.yml`) :
+Chaque composant a un `Dockerfile`. L'override de production
+[`docker-compose.prod.yml`](../docker-compose.prod.yml) part de
+`docker-compose.yml` et :
 
-- retire les services managés en externe (postgres/redis/minio) ;
-- injecte les variables ci-dessus et les secrets JWT ;
-- fixe `restart: unless-stopped` et des `healthcheck` ;
-- fait tourner plusieurs workers `optimization-worker` selon la charge.
+- écarte postgres/redis/minio (parqués sous un profil non activé — services managés) ;
+- force `ENVIRONMENT=production`, `DEBUG=false`, `LOG_LEVEL=INFO` ;
+- monte les clés JWT comme *secrets* Docker (`./infra/secrets/jwt-*.pem` → `/run/secrets/*`) ;
+- retire les ports publics de l'API/front (exposés seulement à la passerelle) ;
+- réplique backend + worker (×2) avec `restart: unless-stopped` ;
+- ajoute un service `gateway` nginx (TLS + proxy, §5).
 
 ```bash
+cp .env.prod.example .env          # puis renseigner les vraies valeurs / secrets
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
@@ -112,12 +118,16 @@ un CDN ou nginx (voir `infra/`), avec `VITE_API_BASE_URL` pointant sur l'API.
 
 ## 5. Passerelle & TLS
 
-Placez un reverse proxy (nginx, `infra/nginx`) devant l'API et le front :
+Le service `gateway` s'appuie sur [`infra/nginx/`](../infra/nginx) :
 
-- terminaison TLS (certificats gérés, ex. Let's Encrypt) ;
-- transfert vers `backend:8000` et service des assets front ;
-- transmission de `X-Forwarded-For` (utilisé par le journal d'audit) ;
-- en-têtes de sécurité (HSTS, CSP).
+- [`nginx.conf`](../infra/nginx/nginx.conf) — upstreams `backend:8000` / `frontend:5173`, limite d'upload 12 Mo (photos POD) ;
+- [`conf.d/routeopt.conf`](../infra/nginx/conf.d/routeopt.conf) — redirection HTTP→HTTPS, terminaison TLS, `/api/` → backend, reste → front.
+
+À faire côté hôte :
+
+- déposer les certificats dans `infra/nginx/certs/` (`fullchain.pem`, `privkey.pem` — ex. Let's Encrypt ; répertoire git-ignoré) ;
+- remplacer `server_name app.routeopt.dz` par votre domaine ;
+- `/api/` transmet `X-Forwarded-For` (indispensable au journal d'audit) et applique HSTS + en-têtes de sécurité.
 
 ## 6. Santé & observabilité
 
