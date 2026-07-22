@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
+import { AuditLogPage } from "@/features/settings/AuditLogPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { DriverPage } from "@/features/driver/DriverPage";
 import { OptimizationPage } from "@/features/optimization/OptimizationPage";
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/territories" element={<TerritoriesPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/developers" element={<DevelopersPage />} />
+        <Route path="/audit-log" element={<AuditLogPage />} />
       </Route>
 
       {/* Driver PWA (F8) — mobile, its own shell, outside the manager layout. */}

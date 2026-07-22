@@ -6,6 +6,7 @@ import {
   Map,
   BarChart3,
   Plug,
+  ScrollText,
   LogOut,
   Languages,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const NAV = [
   { to: "/territories", label: "Territoires", icon: Map, end: false },
   { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
   { to: "/developers", label: "Développeurs", icon: Plug, end: false },
+  { to: "/audit-log", label: "Audit", icon: ScrollText, end: false },
 ];
 
 export function Layout() {
