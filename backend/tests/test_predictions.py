@@ -159,6 +159,50 @@ async def test_prediction_feeds_optimize_payload(ctx) -> None:
     assert msg["deliveries"][0]["service_time"] == 600
 
 
+async def test_prediction_opt_out_uses_stored_service_time(ctx) -> None:
+    """F4: apply_service_time_prediction=false forces the stored time despite a model."""
+    client, sessionmaker, fake_redis = ctx
+    headers = await _admin(client)
+    await _seed_history(sessionmaker, [600, 600, 600, 600])
+    await client.post("/api/v1/predictions/service-time/train", headers=headers)
+
+    await client.post(
+        "/api/v1/fleet/vehicles",
+        headers=headers,
+        json={
+            "name": "Camion 1",
+            "capacity_weight": 500,
+            "depot": {"lat": 36.75, "lon": 3.05},
+            "depot_address": "Dépôt",
+        },
+    )
+    await client.post(
+        "/api/v1/orders",
+        headers=headers,
+        json=[
+            {
+                "address": "New",
+                "lat": 36.75,
+                "lon": 3.06,
+                "weight": 3,
+                "priority": 1,
+                "time_window_start": "09:00",
+                "time_window_end": "12:00",
+            }
+        ],
+    )
+
+    submit = await client.post(
+        "/api/v1/routes/optimize",
+        headers=headers,
+        json={"apply_service_time_prediction": False},
+    )
+    assert submit.status_code == 202, submit.text
+    msg = json.loads((await fake_redis.lrange("queue:optimize", 0, -1))[-1])
+    # Opting out ignores the trained model, keeping the stored 300s default.
+    assert msg["deliveries"][0]["service_time"] == 300
+
+
 async def test_summary_untrained_and_auth(ctx) -> None:
     client, sessionmaker, _ = ctx
     headers = await _admin(client)

@@ -1,6 +1,8 @@
-import { Loader2, MapPin, Sparkles, Trash2 } from "lucide-react";
+import { Loader2, MapPin, Play, Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
+import { useOptimize } from "@/api/optimization";
 import {
   useAssignDriver,
   useAutoGenerate,
@@ -77,6 +79,17 @@ export function TerritoriesPage() {
 function TerritoryCard({ territory, drivers }: { territory: Territory; drivers: Driver[] }) {
   const assign = useAssignDriver();
   const remove = useDeleteTerritory();
+  const optimize = useOptimize();
+  const navigate = useNavigate();
+
+  // F1: route this zone with its assigned driver's vehicle. Needs a driver + stops.
+  const canOptimize =
+    Boolean(territory.driver_user_id) && territory.delivery_count > 0 && !optimize.isPending;
+  const optimizeZone = () =>
+    optimize.mutate(
+      { territoryId: territory.id },
+      { onSuccess: (res) => navigate(`/optimization?job=${res.job_id}`) },
+    );
 
   return (
     <article className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-4">
@@ -114,6 +127,23 @@ function TerritoryCard({ territory, drivers }: { territory: Territory; drivers: 
             </option>
           ))}
         </select>
+        <button
+          onClick={optimizeZone}
+          disabled={!canOptimize}
+          title={
+            territory.driver_user_id
+              ? "Optimiser la tournée de cette zone"
+              : "Affectez d'abord un livreur"
+          }
+          className="inline-flex items-center gap-1.5 rounded-lg border border-primary px-2.5 py-1.5 text-sm font-medium text-primary hover:bg-primary/5 disabled:opacity-40"
+        >
+          {optimize.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Play className="h-4 w-4" aria-hidden="true" />
+          )}
+          Optimiser
+        </button>
         <button
           onClick={() => remove.mutate(territory.id)}
           aria-label={`Supprimer ${territory.name}`}

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Truck, Package, Play, Loader2 } from "lucide-react";
 
 import { useOptimize, useOptimizationJob } from "@/api/optimization";
@@ -20,7 +21,15 @@ export function OptimizationPage() {
   const optimize = useOptimize();
   const [jobId, setJobId] = useState<string | null>(null);
   const [objectiveId, setObjectiveId] = useState<string>("distance");
+  const [useMlServiceTime, setUseMlServiceTime] = useState(true);
   const job = useOptimizationJob(jobId);
+
+  // Deep-link a job launched elsewhere (e.g. "Optimiser cette zone" — F1).
+  const [searchParams] = useSearchParams();
+  const jobParam = searchParams.get("job");
+  useEffect(() => {
+    if (jobParam) setJobId(jobParam);
+  }, [jobParam]);
 
   const vehicleCount = vehicles.data?.length ?? 0;
   const deliveryCount = deliveries.data?.length ?? 0;
@@ -28,7 +37,10 @@ export function OptimizationPage() {
 
   const launch = () => {
     const objective = OBJECTIVES.find((o) => o.id === objectiveId)?.weights;
-    optimize.mutate({ objective }, { onSuccess: (res) => setJobId(res.job_id) });
+    optimize.mutate(
+      { objective, applyServiceTimePrediction: useMlServiceTime },
+      { onSuccess: (res) => setJobId(res.job_id) },
+    );
   };
 
   const running = job.data
@@ -70,6 +82,19 @@ export function OptimizationPage() {
           « Écologique » privilégie le carburant et les émissions (préfère les véhicules propres).
         </p>
       </div>
+
+      <label className="mt-4 flex items-center gap-2 text-sm text-neutral-700">
+        <input
+          type="checkbox"
+          checked={useMlServiceTime}
+          onChange={(e) => setUseMlServiceTime(e.target.checked)}
+          className="h-4 w-4 rounded border-neutral-300"
+        />
+        Temps de service estimé par ML
+        <span className="text-xs text-neutral-500">
+          (décochez pour utiliser le temps saisi par livraison)
+        </span>
+      </label>
 
       <button
         onClick={launch}

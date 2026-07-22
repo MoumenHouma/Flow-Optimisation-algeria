@@ -17,11 +17,16 @@ import fakeredis.aioredis
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from routeopt.core.security import hash_password
 from routeopt.database import get_session
 from routeopt.main import app
 from routeopt.models import Base
+from routeopt.models.delivery import Delivery
+from routeopt.models.user import User
+from routeopt.models.vehicle import Vehicle
 
 TEST_DB_URL = os.getenv("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
@@ -184,3 +189,122 @@ async def test_full_optimize_flow(client: AsyncClient, fake_redis) -> None:
     # Second poll is idempotent — no duplicate routes created
     job2 = await client.get(f"/api/v1/routes/jobs/{job_id}", headers=headers)
     assert len(job2.json()["route_ids"]) == 1
+
+
+@pytest_asyncio.fixture
+async def sessionmaker_and_client(fake_redis):
+    engine = create_async_engine(TEST_DB_URL)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def override_get_session():
+        async with sm() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_get_session
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac, sm
+    app.dependency_overrides.clear()
+    await engine.dispose()
+
+
+async def test_optimize_scoped_to_territory(sessionmaker_and_client, fake_redis) -> None:
+    """F1: territory_id routes only that zone's deliveries with its driver's vehicle."""
+    client, sm = sessionmaker_and_client
+    headers = await _auth(client)
+
+    # Two vehicles (seeded directly — the free plan quota is 1): one bound to the
+    # driver, one unassigned. driver_vehicle_id is captured for the assertion.
+    async with sm() as s:
+        company_id = (await s.scalars(select(User.company_id))).first()
+        driver = User(
+            company_id=company_id,
+            email="drv@acme.dz",
+            password_hash=hash_password("supersecret"),
+            full_name="Driver",
+            role="driver",
+        )
+        s.add(driver)
+        await s.flush()
+        driver_id = driver.id
+        driver_vehicle = Vehicle(
+            company_id=company_id,
+            driver_user_id=driver_id,
+            name="Camion Zone",
+            capacity_weight=500,
+            depot_lat=36.7538,
+            depot_lon=3.0588,
+            depot_address="Dépôt",
+        )
+        s.add(driver_vehicle)
+        s.add(
+            Vehicle(
+                company_id=company_id,
+                name="Camion Libre",
+                capacity_weight=500,
+                depot_lat=36.7538,
+                depot_lon=3.0588,
+                depot_address="Dépôt",
+            )
+        )
+        await s.flush()
+        driver_vehicle_id = str(driver_vehicle.id)
+        await s.commit()
+
+    # A territory assigned to the driver, plus deliveries in and out of the zone.
+    zone = await client.post(
+        "/api/v1/territories",
+        headers=headers,
+        json={"name": "Centre", "driver_user_id": str(driver_id)},
+    )
+    assert zone.status_code == 201, zone.text
+    territory_id = zone.json()["id"]
+
+    async with sm() as s:
+        s.add_all(
+            [
+                Delivery(
+                    company_id=company_id,
+                    address="in-zone A",
+                    lat=36.75,
+                    lon=3.06,
+                    weight=5,
+                    status="geocoded",
+                    territory_id=territory_id,
+                ),
+                Delivery(
+                    company_id=company_id,
+                    address="in-zone B",
+                    lat=36.76,
+                    lon=3.07,
+                    weight=8,
+                    status="geocoded",
+                    territory_id=territory_id,
+                ),
+                Delivery(
+                    company_id=company_id,
+                    address="out-of-zone",
+                    lat=36.70,
+                    lon=3.10,
+                    weight=3,
+                    status="geocoded",
+                ),
+            ]
+        )
+        await s.commit()
+
+    submit = await client.post(
+        "/api/v1/routes/optimize", headers=headers, json={"territory_id": territory_id}
+    )
+    assert submit.status_code == 202, submit.text
+
+    queued = await fake_redis.lrange("queue:optimize", 0, -1)
+    assert len(queued) == 1
+    msg = json.loads(queued[0])
+    # Only the two in-zone deliveries are routed; the out-of-zone one is excluded.
+    assert len(msg["deliveries"]) == 2
+    # Only the driver's vehicle is used, not the unassigned one.
+    assert [v["id"] for v in msg["vehicles"]] == [driver_vehicle_id]

@@ -23,6 +23,7 @@ from routeopt.core.webhooks import WebhookDispatcher
 from routeopt.models.delivery import Delivery
 from routeopt.models.optimization_job import OptimizationJob
 from routeopt.models.route import Route, RouteStop
+from routeopt.models.territory import Territory
 from routeopt.models.vehicle import Vehicle
 from routeopt.modules.predictions.service import ServiceTimeService, predict
 from routeopt.modules.routes.schemas import OptimizeRequest, ReoptimizeRequest
@@ -60,8 +61,14 @@ class RoutesService:
         self, company_id: str, user_id: str, payload: OptimizeRequest
     ) -> tuple[str, int]:
         """Create + enqueue an optimization job. Returns (job_id, delivery_count)."""
-        deliveries = await self._resolve_deliveries(company_id, payload.delivery_ids)
-        vehicles = await self._resolve_vehicles(company_id, payload.vehicle_ids)
+        deliveries = await self._resolve_deliveries(
+            company_id, payload.delivery_ids, payload.territory_id
+        )
+        if payload.territory_id:
+            # F1: route one territory with its assigned driver's vehicle.
+            vehicles = await self._resolve_territory_vehicles(company_id, payload.territory_id)
+        else:
+            vehicles = await self._resolve_vehicles(company_id, payload.vehicle_ids)
         if not deliveries:
             raise ValidationError("No routable deliveries (need geocoded, unassigned stops)")
         if not vehicles:
@@ -84,7 +91,9 @@ class RoutesService:
         self.session.add(job)
         await self.session.flush()
 
-        service_times = await self._service_times(company_id, deliveries)
+        service_times = await self._service_times(
+            company_id, deliveries, payload.apply_service_time_prediction
+        )
         message = {
             "job_id": str(job.id),
             "company_id": company_id,
@@ -151,7 +160,9 @@ class RoutesService:
         self.session.add(job)
         await self.session.flush()
 
-        service_times = await self._service_times(company_id, remaining)
+        service_times = await self._service_times(
+            company_id, remaining, payload.apply_service_time_prediction
+        )
         message = {
             "job_id": str(job.id),
             "company_id": company_id,
@@ -364,7 +375,9 @@ class RoutesService:
         return max(1000, num_deliveries * 100)
 
     # ── helpers ──────────────────────────────────────────────────────────
-    async def _resolve_deliveries(self, company_id: str, ids: list[str]) -> list[Delivery]:
+    async def _resolve_deliveries(
+        self, company_id: str, ids: list[str], territory_id: str | None = None
+    ) -> list[Delivery]:
         stmt = select(Delivery).where(
             Delivery.company_id == uuid.UUID(company_id),
             Delivery.deleted_at.is_(None),
@@ -374,12 +387,20 @@ class RoutesService:
         )
         if ids:
             stmt = stmt.where(Delivery.id.in_([uuid.UUID(i) for i in ids]))
+        if territory_id:  # F1: scope routing to one zone
+            stmt = stmt.where(Delivery.territory_id == uuid.UUID(territory_id))
         return list(await self.session.scalars(stmt))
 
     async def _service_times(
-        self, company_id: str, deliveries: list[Delivery]
+        self, company_id: str, deliveries: list[Delivery], apply_prediction: bool = True
     ) -> dict[uuid.UUID, int]:
-        """Per-delivery service time: ML prediction (F13) when trained, else stored."""
+        """Per-delivery service time: ML prediction (F13) when trained, else stored.
+
+        F4: callers may opt out (``apply_prediction=False``) to force the stored
+        per-delivery service time even when a trained model exists.
+        """
+        if not apply_prediction:
+            return {d.id: d.service_time for d in deliveries}
         model = await ServiceTimeService(self.session).get_model(company_id)
         if model is None:
             return {d.id: d.service_time for d in deliveries}
@@ -405,6 +426,37 @@ class RoutesService:
         if ids:
             stmt = stmt.where(Vehicle.id.in_([uuid.UUID(i) for i in ids]))
         return list(await self.session.scalars(stmt))
+
+    async def _resolve_territory_vehicles(
+        self, company_id: str, territory_id: str
+    ) -> list[Vehicle]:
+        """F1: the active vehicle(s) for a territory's assigned driver.
+
+        Loads the (scoped, live) territory; when it has an assigned driver, returns
+        that driver's active vehicles (error if none). An unassigned territory falls
+        back to all active vehicles, so the zone is still routed.
+        """
+        territory = await self.session.get(Territory, uuid.UUID(territory_id))
+        if (
+            territory is None
+            or str(territory.company_id) != company_id
+            or territory.deleted_at is not None
+        ):
+            raise NotFoundError("Territory not found")
+
+        if territory.driver_user_id is None:
+            return await self._resolve_vehicles(company_id, [])
+
+        stmt = select(Vehicle).where(
+            Vehicle.company_id == uuid.UUID(company_id),
+            Vehicle.deleted_at.is_(None),
+            Vehicle.active.is_(True),
+            Vehicle.driver_user_id == territory.driver_user_id,
+        )
+        vehicles = list(await self.session.scalars(stmt))
+        if not vehicles:
+            raise ValidationError("Territory's assigned driver has no active vehicle")
+        return vehicles
 
     async def _get_job_scoped(self, company_id: str, job_id: str) -> OptimizationJob:
         job = await self.session.get(OptimizationJob, uuid.UUID(job_id))

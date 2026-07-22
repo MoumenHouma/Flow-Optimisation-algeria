@@ -14,6 +14,10 @@ interface OptimizeInput {
   deliveryIds?: string[];
   vehicleIds?: string[];
   objective?: ObjectiveWeights;
+  // F1: scope the job to one territory (its driver's vehicle routes the zone).
+  territoryId?: string;
+  // F4: when false, keep the stored service time instead of the ML prediction.
+  applyServiceTimePrediction?: boolean;
 }
 
 // Submit an optimization job (F3/F14). Empty ids => all routable / all active.
@@ -26,6 +30,10 @@ export function useOptimize() {
           delivery_ids: input.deliveryIds ?? [],
           vehicle_ids: input.vehicleIds ?? [],
           ...(input.objective ? { objective: input.objective } : {}),
+          ...(input.territoryId ? { territory_id: input.territoryId } : {}),
+          ...(input.applyServiceTimePrediction === false
+            ? { apply_service_time_prediction: false }
+            : {}),
         }),
       }),
   });
