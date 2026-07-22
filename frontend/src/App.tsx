@@ -11,6 +11,7 @@ import { OptimizationPage } from "@/features/optimization/OptimizationPage";
 import { ImportPage } from "@/features/import/ImportPage";
 import { FleetPage } from "@/features/fleet/FleetPage";
 import { DevelopersPage } from "@/features/settings/DevelopersPage";
+import { TerritoriesPage } from "@/features/territories/TerritoriesPage";
 
 // Public auth routes + a protected shell (Layout) wrapping the app (DESIGN §3).
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/import" element={<ImportPage />} />
         <Route path="/optimize" element={<OptimizationPage />} />
         <Route path="/fleet" element={<FleetPage />} />
+        <Route path="/territories" element={<TerritoriesPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/developers" element={<DevelopersPage />} />
       </Route>

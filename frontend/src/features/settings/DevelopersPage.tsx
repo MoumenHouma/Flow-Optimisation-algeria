@@ -9,6 +9,7 @@ import {
   useRevokeApiKey,
   useWebhooks,
 } from "@/api/integrations";
+import { BrandingSettings } from "@/features/settings/BrandingSettings";
 import type { ApiKey, Webhook } from "@/types";
 
 const EVENTS = ["delivery.status_changed", "optimization.completed"] as const;
@@ -23,6 +24,7 @@ export function DevelopersPage() {
           Intégrez RouteOpt à votre e-commerce via l'API REST et les webhooks.
         </p>
       </div>
+      <BrandingSettings />
       <ApiKeys />
       <Webhooks />
     </main>

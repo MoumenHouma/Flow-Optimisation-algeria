@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
+from collections.abc import Callable
+
+from optimizer.costs import EmissionFactors, arc_cost, co2_g, factors_for, fuel_ml
 from optimizer.distance_matrix import DistanceMatrix
 from optimizer.fallback import greedy_nearest_neighbor
 from optimizer.models import (
@@ -64,13 +67,23 @@ class VRPSolver:
         )
         routing = pywrapcp.RoutingModel(manager)
 
-        # --- Distance dimension (objective) ---
-        def distance_cb(from_index: int, to_index: int) -> int:
-            f, t = manager.IndexToNode(from_index), manager.IndexToNode(to_index)
-            return int(matrix.distances[f][t])
+        # --- Objective: weighted distance + time + fuel + CO2, per vehicle (F14) ---
+        # Default weights (distance=1) make the arc cost identical to meters, so
+        # single-objective behaviour is unchanged. Fuel/CO2 depend on vehicle type,
+        # so each vehicle gets its own cost evaluator.
+        weights = problem.objective
+        vehicle_factors = [factors_for(v.vehicle_type) for v in problem.vehicles]
 
-        transit_idx = routing.RegisterTransitCallback(distance_cb)
-        routing.SetArcCostEvaluatorOfAllVehicles(transit_idx)
+        def make_cost_cb(factors: EmissionFactors) -> Callable[[int, int], int]:
+            def cb(from_index: int, to_index: int) -> int:
+                f, t = manager.IndexToNode(from_index), manager.IndexToNode(to_index)
+                return arc_cost(matrix.distances[f][t], matrix.durations[f][t], factors, weights)
+
+            return cb
+
+        for vi in range(num_vehicles):
+            cost_idx = routing.RegisterTransitCallback(make_cost_cb(vehicle_factors[vi]))
+            routing.SetArcCostEvaluatorOfVehicle(cost_idx, vi)
 
         # --- Capacity dimension ---
         if problem.respect_capacity:
@@ -109,21 +122,28 @@ class VRPSolver:
             # No solution within the time limit -> caller applies fallback.
             raise ORToolsTimeoutError("OR-Tools returned no solution within time limit")
 
-        return self._extract_solution(problem, num_depots, manager, routing, solution)
+        return self._extract_solution(
+            problem, num_depots, matrix, vehicle_factors, manager, routing, solution
+        )
 
     def _extract_solution(
         self,
         problem: VRPProblem,
         num_depots: int,
+        matrix: DistanceMatrix,
+        vehicle_factors: list[EmissionFactors],
         manager: pywrapcp.RoutingIndexManager,
         routing: pywrapcp.RoutingModel,
         assignment: pywrapcp.Assignment,
     ) -> VRPSolution:
+        # Arc cost is now the weighted objective, so distance/time are re-summed
+        # from the matrix and fuel/CO2 derived per vehicle type (F14 breakdown).
         result = VRPSolution(objective_value=assignment.ObjectiveValue())
         for vehicle_id in range(len(problem.vehicles)):
             index = routing.Start(vehicle_id)
             stops: list[RouteStop] = []
-            route_distance = 0
+            distance = 0.0
+            duration = 0.0
             seq = 0
             while not routing.IsEnd(index):
                 node = manager.IndexToNode(index)
@@ -136,16 +156,24 @@ class VRPSolver:
                     seq += 1
                 prev = index
                 index = assignment.Value(routing.NextVar(index))
-                route_distance += routing.GetArcCostForVehicle(prev, index, vehicle_id)
+                a, b = manager.IndexToNode(prev), manager.IndexToNode(index)
+                distance += matrix.distances[a][b]
+                duration += matrix.durations[a][b]
             if stops:
-                result.routes.append(
-                    VehicleRoute(
-                        vehicle_id=problem.vehicles[vehicle_id].id,
-                        stops=stops,
-                        total_distance_m=route_distance,
-                    )
+                factors = vehicle_factors[vehicle_id]
+                route = VehicleRoute(
+                    vehicle_id=problem.vehicles[vehicle_id].id,
+                    stops=stops,
+                    total_distance_m=distance,
+                    total_time_s=int(duration),
+                    fuel_l=round(fuel_ml(distance, factors) / 1000.0, 3),
+                    co2_kg=round(co2_g(distance, factors) / 1000.0, 3),
                 )
-                result.total_distance_m += route_distance
+                result.routes.append(route)
+                result.total_distance_m += distance
+                result.total_time_s += int(duration)
+                result.total_fuel_l = round(result.total_fuel_l + route.fuel_l, 3)
+                result.total_co2_kg = round(result.total_co2_kg + route.co2_kg, 3)
         if not result.routes:
             raise OptimizationError("infeasible: no route could be built")
         return result

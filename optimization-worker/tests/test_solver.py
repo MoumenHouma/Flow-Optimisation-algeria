@@ -1,5 +1,6 @@
 """Solver tests (docs/RULES.md §5.2). Uses a synthetic matrix — no OSRM needed."""
 
+from optimizer.costs import ObjectiveWeights
 from optimizer.distance_matrix import DistanceMatrix
 from optimizer.models import Delivery, GeoPoint, Vehicle, VRPProblem
 from optimizer.solver import VRPSolver
@@ -67,3 +68,36 @@ def test_multi_depot_each_vehicle_serves_its_own_area() -> None:
     # Each vehicle starts at its own depot and serves the nearby stop.
     assert by_vehicle.get("va") == ["near_a"]
     assert by_vehicle.get("vb") == ["near_b"]
+
+
+def _eco_problem(objective: ObjectiveWeights) -> VRPProblem:
+    # One delivery, two vehicles at the same depot: a truck and a motorcycle.
+    depot = GeoPoint(36.7538, 3.0588)
+    return VRPProblem(
+        depot=depot,
+        deliveries=[Delivery(id="1", lat=36.75, lon=3.06, demand=1)],
+        vehicles=[
+            Vehicle(id="truck", capacity=100, depot=depot, vehicle_type="truck"),
+            Vehicle(id="moto", capacity=100, depot=depot, vehicle_type="motorcycle"),
+        ],
+        respect_time_windows=False,
+        objective=objective,
+    )
+
+
+def test_eco_objective_prefers_greener_vehicle() -> None:
+    matrix = _matrix_3x3()  # nodes: depot, d1, (unused d2 row kept for shape)
+    solver = VRPSolver(time_limit_seconds=5)
+
+    # Distance-only: fuel/CO2 ignored, cost identical for both vehicles.
+    dist_only = solver.solve(_eco_problem(ObjectiveWeights(distance=1.0)), matrix)
+    assert {s.delivery_id for r in dist_only.routes for s in r.stops} == {"1"}
+
+    # Eco weighting (fuel + CO2) makes the truck more expensive → the moto serves it.
+    eco = solver.solve(_eco_problem(ObjectiveWeights(distance=0.0, fuel=1.0, co2=1.0)), matrix)
+    served_by = {r.vehicle_id for r in eco.routes for s in r.stops}
+    assert served_by == {"moto"}
+    # The breakdown is populated.
+    route = next(r for r in eco.routes if r.stops)
+    assert route.fuel_l > 0
+    assert route.co2_kg > 0

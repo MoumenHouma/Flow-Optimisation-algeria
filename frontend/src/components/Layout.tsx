@@ -3,6 +3,7 @@ import {
   Upload,
   Navigation,
   Truck,
+  Map,
   BarChart3,
   Plug,
   LogOut,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
+import { useBranding } from "@/api/company";
 import { useAuthStore } from "@/stores/auth-store";
 import { isRTL, useUIStore } from "@/stores/ui-store";
 
@@ -19,6 +21,7 @@ const NAV = [
   { to: "/import", label: "Importer", icon: Upload, end: false },
   { to: "/optimize", label: "Optimiser", icon: Navigation, end: false },
   { to: "/fleet", label: "Flotte", icon: Truck, end: false },
+  { to: "/territories", label: "Territoires", icon: Map, end: false },
   { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
   { to: "/developers", label: "Développeurs", icon: Plug, end: false },
 ];
@@ -28,6 +31,7 @@ export function Layout() {
   const clear = useAuthStore((s) => s.clear);
   const locale = useUIStore((s) => s.locale);
   const setLocale = useUIStore((s) => s.setLocale);
+  const { brandName, logoUrl } = useBranding();
 
   const logout = () => {
     clear();
@@ -39,7 +43,13 @@ export function Layout() {
       <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-6">
-            <span className="text-lg font-bold text-primary">RouteOpt 📦</span>
+            <span className="flex items-center gap-2 text-lg font-bold text-primary">
+              {logoUrl ? (
+                <img src={logoUrl} alt={brandName} className="h-6 w-auto" />
+              ) : (
+                <>{brandName} 📦</>
+              )}
+            </span>
             <nav className="flex items-center gap-1 overflow-x-auto">
               {NAV.map(({ to, label, icon: Icon, end }) => (
                 <NavLink

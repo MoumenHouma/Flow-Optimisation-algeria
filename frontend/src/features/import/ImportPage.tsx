@@ -140,7 +140,9 @@ export function ImportPage() {
             <li>📍 {geoSummary.matched} géocodées précisément</li>
             {geoSummary.approximate > 0 && <li>≈ {geoSummary.approximate} approximatives</li>}
             {geoSummary.failed > 0 && (
-              <li className="text-danger">⚠️ {geoSummary.failed} adresses non trouvées (à corriger)</li>
+              <li className="text-danger">
+                ⚠️ {geoSummary.failed} adresses non trouvées (à corriger)
+              </li>
             )}
           </ul>
           <Link
@@ -158,7 +160,9 @@ export function ImportPage() {
 function PreviewTable({ preview, fileName }: { preview: ImportPreview; fileName: string }) {
   // Show up to 20 rows: valid ones first, then flagged ones for correction.
   const sample = [
-    ...preview.valid.slice(0, 20).map((d, i) => ({ line: i + 2, draft: d, errors: [] as string[] })),
+    ...preview.valid
+      .slice(0, 20)
+      .map((d, i) => ({ line: i + 2, draft: d, errors: [] as string[] })),
     ...preview.invalid.slice(0, 20).map((e) => ({ line: e.line, draft: null, errors: e.errors })),
   ].slice(0, 20);
 
@@ -181,7 +185,9 @@ function PreviewTable({ preview, fileName }: { preview: ImportPreview; fileName:
             {sample.map((r) => (
               <tr key={r.line} className="border-t border-neutral-100">
                 <td className="p-2 font-mono text-neutral-400">{r.line}</td>
-                <td className="p-2">{r.draft?.address ?? <em className="text-neutral-400">—</em>}</td>
+                <td className="p-2">
+                  {r.draft?.address ?? <em className="text-neutral-400">—</em>}
+                </td>
                 <td className="p-2">
                   {r.errors.length === 0 ? (
                     <span className="text-success">✓ OK</span>

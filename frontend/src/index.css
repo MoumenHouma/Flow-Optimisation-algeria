@@ -4,6 +4,12 @@
 
 :root {
   --font-sans: "Inter", "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+
+  /* Brand palette (F16). RGB channels for Tailwind's rgb(var / <alpha>) tokens;
+     overridden at runtime from the company's branding.primary_color. */
+  --color-primary: 37 99 235; /* #2563EB */
+  --color-primary-dark: 29 78 216; /* #1D4ED8 */
+  --color-primary-light: 219 234 254; /* #DBEAFE */
 }
 
 body {

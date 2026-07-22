@@ -3,12 +3,20 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api-client";
 import type { JobResult, OptimizeResponse, RouteResult } from "@/types";
 
+interface ObjectiveWeights {
+  distance: number;
+  time: number;
+  fuel: number;
+  co2: number;
+}
+
 interface OptimizeInput {
   deliveryIds?: string[];
   vehicleIds?: string[];
+  objective?: ObjectiveWeights;
 }
 
-// Submit an optimization job (F3). Empty ids => all routable / all active.
+// Submit an optimization job (F3/F14). Empty ids => all routable / all active.
 export function useOptimize() {
   return useMutation({
     mutationFn: (input: OptimizeInput = {}) =>
@@ -17,6 +25,7 @@ export function useOptimize() {
         body: JSON.stringify({
           delivery_ids: input.deliveryIds ?? [],
           vehicle_ids: input.vehicleIds ?? [],
+          ...(input.objective ? { objective: input.objective } : {}),
         }),
       }),
   });

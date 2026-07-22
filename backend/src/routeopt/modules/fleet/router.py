@@ -46,6 +46,15 @@ async def add_vehicle(payload: VehicleIn, session: SessionDep, user: ManagerDep)
     return VehicleOut.from_model(vehicle)
 
 
+@router.get("/drivers", response_model=list[DriverOut])
+async def list_drivers(
+    session: SessionDep,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> list[DriverOut]:
+    drivers = await FleetService(session).list_drivers(user.company_id)
+    return [DriverOut.from_model(d) for d in drivers]
+
+
 @router.post("/drivers", response_model=DriverOut, status_code=201)
 async def create_driver(payload: DriverIn, session: SessionDep, user: ManagerDep) -> DriverOut:
     """Create a driver login (F8). Assign to a vehicle via its driver_user_id."""

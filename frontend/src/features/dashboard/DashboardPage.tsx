@@ -44,17 +44,36 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
   return (
     <>
       <section className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi icon={<MapPin className="h-5 w-5" />} label="Distance (aujourd'hui)" value={formatKm(data.today_distance_m)} />
-        <Kpi icon={<Clock className="h-5 w-5" />} label="Temps (aujourd'hui)" value={formatDuration(data.today_time_s)} />
-        <Kpi icon={<CheckCircle className="h-5 w-5" />} label="Livrées" value={`${delivered}/${data.deliveries_total}`} />
-        <Kpi icon={<Truck className="h-5 w-5" />} label="Véhicules actifs" value={`${data.vehicles_active}/${data.vehicles_total}`} />
+        <Kpi
+          icon={<MapPin className="h-5 w-5" />}
+          label="Distance (aujourd'hui)"
+          value={formatKm(data.today_distance_m)}
+        />
+        <Kpi
+          icon={<Clock className="h-5 w-5" />}
+          label="Temps (aujourd'hui)"
+          value={formatDuration(data.today_time_s)}
+        />
+        <Kpi
+          icon={<CheckCircle className="h-5 w-5" />}
+          label="Livrées"
+          value={`${delivered}/${data.deliveries_total}`}
+        />
+        <Kpi
+          icon={<Truck className="h-5 w-5" />}
+          label="Véhicules actifs"
+          value={`${data.vehicles_active}/${data.vehicles_total}`}
+        />
       </section>
 
       <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-neutral-700">Livraisons par statut</h2>
         {data.deliveries_total === 0 ? (
           <p className="mt-2 text-sm text-neutral-500">
-            Aucune livraison. <Link to="/import" className="text-primary hover:underline">Importer un fichier →</Link>
+            Aucune livraison.{" "}
+            <Link to="/import" className="text-primary hover:underline">
+              Importer un fichier →
+            </Link>
           </p>
         ) : (
           <div className="mt-3 flex flex-wrap gap-2">

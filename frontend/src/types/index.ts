@@ -148,6 +148,45 @@ export interface WebhookCreated extends Webhook {
   secret: string;
 }
 
+export interface Branding {
+  brand_name?: string | null;
+  primary_color?: string | null;
+  logo_url?: string | null;
+}
+
+export interface Company {
+  id: string;
+  name: string;
+  plan: string;
+  locale: string;
+  branding: Branding | null;
+}
+
+export interface Territory {
+  id: string;
+  name: string;
+  color: string;
+  driver_user_id: string | null;
+  centroid: GeoPoint | null;
+  delivery_count: number;
+}
+
+export interface Driver {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+}
+
+export interface ServiceTimeModel {
+  trained: boolean;
+  sample_count: number;
+  cohort_count: number;
+  global_median_s: number;
+  mae_seconds: number | null;
+  trained_at: string | null;
+}
+
 export interface TrendPoint {
   date: string;
   deliveries_completed: number;
@@ -238,6 +277,8 @@ export interface JobResult {
   solver_strategy?: string;
   duration_ms?: number;
   total_distance_m?: number;
+  total_fuel_l?: number;
+  total_co2_kg?: number;
   route_ids: string[];
   error_message?: string;
 }

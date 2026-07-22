@@ -24,6 +24,7 @@ from routeopt.models.delivery import Delivery
 from routeopt.models.optimization_job import OptimizationJob
 from routeopt.models.route import Route, RouteStop
 from routeopt.models.vehicle import Vehicle
+from routeopt.modules.predictions.service import ServiceTimeService, predict
 from routeopt.modules.routes.schemas import OptimizeRequest, ReoptimizeRequest
 from routeopt.redis_client import redis_client
 
@@ -83,18 +84,20 @@ class RoutesService:
         self.session.add(job)
         await self.session.flush()
 
+        service_times = await self._service_times(company_id, deliveries)
         message = {
             "job_id": str(job.id),
             "company_id": company_id,
             "depot": depot,
             "constraints": payload.constraints.model_dump(),
+            "objective": payload.objective.model_dump(),
             "deliveries": [
                 {
                     "id": str(d.id),
                     "lat": _req_float(d.lat),
                     "lon": _req_float(d.lon),
                     "demand": float(d.weight),
-                    "service_time": d.service_time,
+                    "service_time": service_times[d.id],
                     "priority": d.priority,
                     "time_window": _time_window_seconds(d),
                 }
@@ -104,6 +107,7 @@ class RoutesService:
                 {
                     "id": str(v.id),
                     "capacity": float(v.capacity_weight),
+                    "vehicle_type": v.vehicle_type,
                     "depot": {"lat": float(v.depot_lat), "lon": float(v.depot_lon)},
                 }
                 for v in vehicles
@@ -147,18 +151,20 @@ class RoutesService:
         self.session.add(job)
         await self.session.flush()
 
+        service_times = await self._service_times(company_id, remaining)
         message = {
             "job_id": str(job.id),
             "company_id": company_id,
             "depot": depot,
             "constraints": payload.constraints.model_dump(),
+            "objective": payload.objective.model_dump(),
             "deliveries": [
                 {
                     "id": str(d.id),
                     "lat": _req_float(d.lat),
                     "lon": _req_float(d.lon),
                     "demand": float(d.weight),
-                    "service_time": d.service_time,
+                    "service_time": service_times[d.id],
                     "priority": d.priority,
                     "time_window": _time_window_seconds(d),
                 }
@@ -168,6 +174,7 @@ class RoutesService:
                 {
                     "id": str(vehicle.id),
                     "capacity": float(vehicle.capacity_weight),
+                    "vehicle_type": vehicle.vehicle_type,
                     "depot": depot,
                 }
             ],
@@ -270,6 +277,8 @@ class RoutesService:
         job.result = {
             "total_distance_m": message.get("total_distance_m"),
             "total_time_s": message.get("total_time_s"),
+            "total_fuel_l": message.get("total_fuel_l"),
+            "total_co2_kg": message.get("total_co2_kg"),
             "objective_value": message.get("objective_value"),
             "used_osrm": message.get("used_osrm"),
             "is_suboptimal": message.get("is_suboptimal"),
@@ -341,6 +350,8 @@ class RoutesService:
         job.result = {
             "total_distance_m": message.get("total_distance_m"),
             "total_time_s": message.get("total_time_s"),
+            "total_fuel_l": message.get("total_fuel_l"),
+            "total_co2_kg": message.get("total_co2_kg"),
             "objective_value": message.get("objective_value"),
             "used_osrm": message.get("used_osrm"),
             "is_suboptimal": message.get("is_suboptimal"),
@@ -364,6 +375,15 @@ class RoutesService:
         if ids:
             stmt = stmt.where(Delivery.id.in_([uuid.UUID(i) for i in ids]))
         return list(await self.session.scalars(stmt))
+
+    async def _service_times(
+        self, company_id: str, deliveries: list[Delivery]
+    ) -> dict[uuid.UUID, int]:
+        """Per-delivery service time: ML prediction (F13) when trained, else stored."""
+        model = await ServiceTimeService(self.session).get_model(company_id)
+        if model is None:
+            return {d.id: d.service_time for d in deliveries}
+        return {d.id: predict(model.model, d) for d in deliveries}
 
     async def _remaining_deliveries(self, route_id: uuid.UUID) -> list[Delivery]:
         """Geocoded, not-yet-done stops on a route — the re-optimizable set (F9)."""

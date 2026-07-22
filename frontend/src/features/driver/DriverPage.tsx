@@ -2,6 +2,7 @@ import { CheckCircle, Navigation, Phone, XCircle, Loader2, LogOut } from "lucide
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { useBranding } from "@/api/company";
 import { type DriverStatus, useMyRoute, useUpdateStatus } from "@/api/driver";
 import { useAuthStore } from "@/stores/auth-store";
 import type { DriverStop } from "@/types";
@@ -12,6 +13,7 @@ import { ProofSheet } from "./ProofSheet";
 export function DriverPage() {
   const navigate = useNavigate();
   const clear = useAuthStore((s) => s.clear);
+  const { brandName } = useBranding();
   const { data: route, isLoading } = useMyRoute();
   const update = useUpdateStatus();
   const [proofStop, setProofStop] = useState<DriverStop | null>(null);
@@ -37,7 +39,7 @@ export function DriverPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-neutral-50">
       <header className="sticky top-0 flex items-center justify-between bg-white px-4 py-3 shadow-sm">
-        <span className="font-bold text-primary">RouteOpt 📦</span>
+        <span className="font-bold text-primary">{brandName} 📦</span>
         <button onClick={logout} aria-label="Déconnexion" className="rounded p-1 text-neutral-500">
           <LogOut className="h-5 w-5" aria-hidden="true" />
         </button>
