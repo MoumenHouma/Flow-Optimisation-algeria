@@ -19,7 +19,9 @@ from routeopt.modules.auth.router import router as auth_router
 from routeopt.modules.dashboard.router import router as dashboard_router
 from routeopt.modules.driver.router import router as driver_router
 from routeopt.modules.fleet.router import router as fleet_router
+from routeopt.modules.integrations.router import router as integrations_router
 from routeopt.modules.orders.router import router as orders_router
+from routeopt.modules.public_api.router import router as public_api_router
 from routeopt.modules.routes.router import router as routes_router
 
 settings = get_settings()
@@ -48,6 +50,9 @@ app.include_router(routes_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(driver_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(integrations_router, prefix="/api/v1")
+# Public partner API — key-authed, mounted off /api/public/v1 (F10).
+app.include_router(public_api_router, prefix="/api")
 
 
 @app.get("/health", tags=["health"])

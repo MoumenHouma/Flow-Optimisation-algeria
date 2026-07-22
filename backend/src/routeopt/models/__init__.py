@@ -5,6 +5,7 @@ Phase-2 tables (depots, api_keys, delivery_status_history, proof_of_delivery,
 audit_log, refresh_tokens) are documented in SCHEMA.md and added as features land.
 """
 
+from routeopt.models.api_key import ApiKey
 from routeopt.models.base import Base
 from routeopt.models.company import Company
 from routeopt.models.delivery import Delivery
@@ -15,8 +16,10 @@ from routeopt.models.refresh_token import RefreshToken
 from routeopt.models.route import Route, RouteStop
 from routeopt.models.user import User
 from routeopt.models.vehicle import Vehicle
+from routeopt.models.webhook import Webhook
 
 __all__ = [
+    "ApiKey",
     "Base",
     "Company",
     "Delivery",
@@ -28,4 +31,5 @@ __all__ = [
     "RouteStop",
     "User",
     "Vehicle",
+    "Webhook",
 ]

@@ -104,6 +104,32 @@ export interface ProofOfDelivery {
   captured_at: string;
 }
 
+export interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scope: "read" | "write" | "admin";
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
+export interface ApiKeyCreated extends ApiKey {
+  key: string;
+}
+
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  created_at: string;
+}
+
+export interface WebhookCreated extends Webhook {
+  secret: string;
+}
+
 export interface TrendPoint {
   date: string;
   deliveries_completed: number;

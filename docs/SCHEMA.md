@@ -156,6 +156,26 @@ CREATE TABLE api_keys (
 CREATE INDEX idx_api_keys_company ON api_keys(company_id) WHERE revoked_at IS NULL;
 ```
 
+### 3.6 `webhooks`
+
+Abonnements webhook sortants (F10). RouteOpt POST un payload JSON signé
+(HMAC-SHA256 avec `secret`, en-tête `X-RouteOpt-Signature`) à chaque évènement
+listé dans `events` (ex. `delivery.status_changed`, `optimization.completed`).
+
+```sql
+CREATE TABLE webhooks (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id   UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    url          TEXT NOT NULL,
+    secret       VARCHAR(64) NOT NULL, -- signe le payload, jamais renvoyé en clair après création
+    events       VARCHAR(255) NOT NULL, -- liste d'évènements séparés par des virgules
+    active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_webhooks_company ON webhooks(company_id);
+```
+
 ### 3.5 `audit_log`
 
 Journal d'audit immuable (RULES §8.1 "Insufficient Logging → audit trail" ; conformité

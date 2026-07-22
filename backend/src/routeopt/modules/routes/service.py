@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.config import get_settings
 from routeopt.core.exceptions import NotFoundError, ValidationError
+from routeopt.core.webhooks import WebhookDispatcher
 from routeopt.models.delivery import Delivery
 from routeopt.models.optimization_job import OptimizationJob
 from routeopt.models.route import Route, RouteStop
@@ -275,6 +276,17 @@ class RoutesService:
         }
         job.completed_at = now
         await self.session.commit()
+
+        await WebhookDispatcher(self.session).dispatch(
+            str(job.company_id),
+            "optimization.completed",
+            {
+                "job_id": str(job.id),
+                "trigger": job.trigger,
+                "total_distance_m": message.get("total_distance_m"),
+                "route_ids": await self.route_ids_for_job(str(job.id)),
+            },
+        )
 
     async def _persist_reoptimize(
         self, job: OptimizationJob, message: dict[str, Any], now: datetime

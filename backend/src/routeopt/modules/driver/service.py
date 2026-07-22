@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.exceptions import NotFoundError, ValidationError
 from routeopt.core.storage import Storage
+from routeopt.core.webhooks import WebhookDispatcher
 from routeopt.models.delivery import Delivery
 from routeopt.models.delivery_status_history import DeliveryStatusHistory
 from routeopt.models.proof_of_delivery import ProofOfDelivery
@@ -135,6 +136,18 @@ class DriverService:
 
         await self.session.commit()
         await self.session.refresh(delivery)
+
+        # Notify partner integrations (F10). Best-effort; never blocks the update.
+        await WebhookDispatcher(self.session).dispatch(
+            company_id,
+            "delivery.status_changed",
+            {
+                "delivery_id": str(delivery.id),
+                "order_id": delivery.order_id,
+                "status": delivery.status,
+                "reason": payload.reason,
+            },
+        )
         return delivery
 
     async def save_proof(

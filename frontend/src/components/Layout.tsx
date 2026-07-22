@@ -4,6 +4,7 @@ import {
   Navigation,
   Truck,
   BarChart3,
+  Plug,
   LogOut,
   Languages,
 } from "lucide-react";
@@ -19,6 +20,7 @@ const NAV = [
   { to: "/optimize", label: "Optimiser", icon: Navigation, end: false },
   { to: "/fleet", label: "Flotte", icon: Truck, end: false },
   { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
+  { to: "/developers", label: "Développeurs", icon: Plug, end: false },
 ];
 
 export function Layout() {
