@@ -25,10 +25,11 @@ from optimizer.models import (
     OptimizationError,
     Vehicle,
     VRPProblem,
+    VRPSolution,
     depot_layout,
 )
 from optimizer.postprocessor import solution_to_result
-from optimizer.preprocessor import needs_decomposition, validate
+from optimizer.preprocessor import cluster, needs_decomposition, validate
 from optimizer.solver import VRPSolver
 
 settings = get_settings()
@@ -86,6 +87,43 @@ def _build_problem(payload: dict) -> VRPProblem:
     )
 
 
+async def _solve_one(
+    problem: VRPProblem, redis_client: redis.Redis
+) -> tuple[VRPSolution, bool, dict[str, dict]]:
+    """Build the matrix, solve one (sub-)problem, and render its route geometry."""
+    # Matrix nodes: depot(s) first, then deliveries — same layout the solver uses.
+    depot_points, _ = depot_layout(problem)
+    points = depot_points + [GeoPoint(d.lat, d.lon) for d in problem.deliveries]
+    matrix, used_osrm = await build_matrix_with_fallback(points, redis_client)
+
+    solver = VRPSolver(time_limit_seconds=_time_limit_for(len(problem.deliveries)))
+    solution = solver.solve(problem, matrix)
+
+    geometries: dict[str, dict] = {}
+    if used_osrm:
+        coords = {d.id: GeoPoint(d.lat, d.lon) for d in problem.deliveries}
+        depot_by_vehicle = {v.id: v.depot for v in problem.vehicles}
+        for route in solution.routes:
+            ordered = sorted(route.stops, key=lambda s: s.sequence)
+            home = depot_by_vehicle.get(route.vehicle_id, problem.depot)
+            pts = [home, *[coords[s.delivery_id] for s in ordered], home]
+            geom = await osrm_route_geometry(pts)
+            if geom is not None:
+                geometries[route.vehicle_id] = geom
+    return solution, used_osrm, geometries
+
+
+def _merge_into(acc: VRPSolution, part: VRPSolution) -> None:
+    """Fold a sub-problem's solution into the aggregate (routes + totals)."""
+    acc.routes.extend(part.routes)
+    acc.total_distance_m += part.total_distance_m
+    acc.total_time_s += part.total_time_s
+    acc.total_fuel_l = round(acc.total_fuel_l + part.total_fuel_l, 3)
+    acc.total_co2_kg = round(acc.total_co2_kg + part.total_co2_kg, 3)
+    acc.objective_value += part.objective_value
+    acc.is_suboptimal = acc.is_suboptimal or part.is_suboptimal
+
+
 async def process_job(message: dict, redis_client: redis.Redis) -> dict:
     """Process one job payload; return the result message the backend persists."""
     started = time.monotonic()
@@ -96,32 +134,23 @@ async def process_job(message: dict, redis_client: redis.Redis) -> dict:
         problem = _build_problem(message)
         validate(problem)
 
-        if needs_decomposition(problem):
-            # TODO: cluster -> solve sub-problems in parallel -> merge (ARCHITECTURE §4.1).
-            pass
+        # Large instances (> threshold) are split into geographic sub-problems,
+        # solved independently and merged, so each solve stays fast (ARCHITECTURE §4.1).
+        subproblems = cluster(problem) if needs_decomposition(problem) else [problem]
+        decomposed = len(subproblems) > 1
 
-        # Matrix nodes: depot(s) first, then deliveries — same layout the solver uses.
-        depot_points, _ = depot_layout(problem)
-        points = depot_points + [GeoPoint(d.lat, d.lon) for d in problem.deliveries]
-        matrix, used_osrm = await build_matrix_with_fallback(points, redis_client)
-
-        solver = VRPSolver(time_limit_seconds=_time_limit_for(len(problem.deliveries)))
-        solution = solver.solve(problem, matrix)
+        solution = VRPSolution(strategy="decomposition" if decomposed else "or_tools")
+        geometries: dict[str, dict] = {}
+        used_osrm = True
+        for sub in subproblems:
+            sub_solution, sub_osrm, sub_geom = await _solve_one(sub, redis_client)
+            _merge_into(solution, sub_solution)
+            geometries.update(sub_geom)
+            used_osrm = used_osrm and sub_osrm
         if not used_osrm:
             solution.is_suboptimal = True  # distances are straight-line approximations
-
-        # Real road geometry per route (only worth it when OSRM is actually up).
-        geometries: dict[str, dict] = {}
-        if used_osrm:
-            coords = {d.id: GeoPoint(d.lat, d.lon) for d in problem.deliveries}
-            depot_by_vehicle = {v.id: v.depot for v in problem.vehicles}
-            for route in solution.routes:
-                ordered = sorted(route.stops, key=lambda s: s.sequence)
-                home = depot_by_vehicle.get(route.vehicle_id, problem.depot)
-                pts = [home, *[coords[s.delivery_id] for s in ordered], home]
-                geom = await osrm_route_geometry(pts)
-                if geom is not None:
-                    geometries[route.vehicle_id] = geom
+        if decomposed:
+            solution.strategy = "decomposition"
 
         duration_ms = int((time.monotonic() - started) * 1000)
         return {

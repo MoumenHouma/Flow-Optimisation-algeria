@@ -29,6 +29,7 @@ def greedy_nearest_neighbor(problem: VRPProblem, matrix: DistanceMatrix) -> VRPS
         current = home
         stops: list[RouteStop] = []
         distance = 0.0
+        duration = 0.0
         capacity_left = vehicle.capacity
         seq = 0
         while unvisited:
@@ -42,6 +43,7 @@ def greedy_nearest_neighbor(problem: VRPProblem, matrix: DistanceMatrix) -> VRPS
                 break
             nxt = min(candidates, key=lambda n: matrix.distances[current][n])
             distance += matrix.distances[current][nxt]
+            duration += matrix.durations[current][nxt]
             capacity_left -= problem.deliveries[nxt - num_depots].demand
             stops.append(
                 RouteStop(delivery_id=problem.deliveries[nxt - num_depots].id, sequence=seq)
@@ -51,16 +53,19 @@ def greedy_nearest_neighbor(problem: VRPProblem, matrix: DistanceMatrix) -> VRPS
             current = nxt
         if stops:
             distance += matrix.distances[current][home]  # return to own depot
+            duration += matrix.durations[current][home]
             factors = factors_for(vehicle.vehicle_type)
             route = VehicleRoute(
                 vehicle_id=vehicle.id,
                 stops=stops,
                 total_distance_m=distance,
-                fuel_l=round(fuel_ml(distance, factors) / 1000.0, 3),
-                co2_kg=round(co2_g(distance, factors) / 1000.0, 3),
+                total_time_s=int(duration),
+                fuel_l=round(fuel_ml(distance, duration, factors) / 1000.0, 3),
+                co2_kg=round(co2_g(distance, duration, factors) / 1000.0, 3),
             )
             solution.routes.append(route)
             solution.total_distance_m += distance
+            solution.total_time_s += int(duration)
             solution.total_fuel_l = round(solution.total_fuel_l + route.fuel_l, 3)
             solution.total_co2_kg = round(solution.total_co2_kg + route.co2_kg, 3)
 

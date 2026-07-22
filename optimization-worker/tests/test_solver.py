@@ -101,3 +101,41 @@ def test_eco_objective_prefers_greener_vehicle() -> None:
     route = next(r for r in eco.routes if r.stops)
     assert route.fuel_l > 0
     assert route.co2_kg > 0
+
+
+def _time_vs_distance_problem(objective: ObjectiveWeights) -> VRPProblem:
+    depot = GeoPoint(36.75, 3.05)
+    return VRPProblem(
+        depot=depot,
+        deliveries=[
+            Delivery(id="1", lat=36.75, lon=3.06, demand=1),
+            Delivery(id="2", lat=36.76, lon=3.07, demand=1),
+        ],
+        vehicles=[Vehicle(id="v1", capacity=10, depot=depot)],
+        respect_time_windows=False,
+        objective=objective,
+    )
+
+
+def _matrix_time_vs_distance() -> DistanceMatrix:
+    # Nodes: 0=depot, 1, 2. Distance favours tour 0→1→2→0; time favours 0→2→1→0.
+    distances = [[0, 10, 100], [100, 0, 10], [10, 100, 0]]
+    durations = [[0, 100, 10], [10, 0, 100], [100, 10, 0]]
+    return DistanceMatrix(durations=durations, distances=distances)
+
+
+def test_normalized_objective_balances_distance_and_time() -> None:
+    solver = VRPSolver(time_limit_seconds=5)
+    matrix = _matrix_time_vs_distance()
+
+    def order(objective: ObjectiveWeights) -> list[str]:
+        sol = solver.solve(_time_vs_distance_problem(objective), matrix)
+        stops = next(r.stops for r in sol.routes if r.stops)
+        return [s.delivery_id for s in sorted(stops, key=lambda s: s.sequence)]
+
+    # Distance-only takes the distance-optimal order...
+    assert order(ObjectiveWeights(distance=1.0)) == ["1", "2"]
+    # ...while a balanced objective (normalized so time carries real weight) follows
+    # the much faster tour instead — the pre-normalization objective was
+    # distance-dominated and tied here.
+    assert order(ObjectiveWeights(distance=1.0, time=1.0, fuel=1.0, co2=0.5)) == ["2", "1"]

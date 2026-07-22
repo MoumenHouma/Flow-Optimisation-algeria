@@ -166,8 +166,8 @@ class VRPSolver:
                     stops=stops,
                     total_distance_m=distance,
                     total_time_s=int(duration),
-                    fuel_l=round(fuel_ml(distance, factors) / 1000.0, 3),
-                    co2_kg=round(co2_g(distance, factors) / 1000.0, 3),
+                    fuel_l=round(fuel_ml(distance, duration, factors) / 1000.0, 3),
+                    co2_kg=round(co2_g(distance, duration, factors) / 1000.0, 3),
                 )
                 result.routes.append(route)
                 result.total_distance_m += distance
