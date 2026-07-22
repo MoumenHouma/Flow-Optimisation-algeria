@@ -148,6 +148,15 @@ export interface WebhookCreated extends Webhook {
   secret: string;
 }
 
+export interface ServiceTimeModel {
+  trained: boolean;
+  sample_count: number;
+  cohort_count: number;
+  global_median_s: number;
+  mae_seconds: number | null;
+  trained_at: string | null;
+}
+
 export interface TrendPoint {
   date: string;
   deliveries_completed: number;

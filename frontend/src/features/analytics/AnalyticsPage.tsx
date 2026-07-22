@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { usePerformance, useTrends } from "@/api/analytics";
+import { ServiceTimePanel } from "@/features/analytics/ServiceTimePanel";
 import { formatKm } from "@/lib/format";
 import type { DriverStat, FailureReason, TrendPoint } from "@/types";
 
@@ -79,6 +80,8 @@ export function AnalyticsPage() {
           )}
         </section>
       </div>
+
+      <ServiceTimePanel />
     </main>
   );
 }

@@ -24,6 +24,7 @@ from routeopt.models.delivery import Delivery
 from routeopt.models.optimization_job import OptimizationJob
 from routeopt.models.route import Route, RouteStop
 from routeopt.models.vehicle import Vehicle
+from routeopt.modules.predictions.service import ServiceTimeService, predict
 from routeopt.modules.routes.schemas import OptimizeRequest, ReoptimizeRequest
 from routeopt.redis_client import redis_client
 
@@ -83,6 +84,7 @@ class RoutesService:
         self.session.add(job)
         await self.session.flush()
 
+        service_times = await self._service_times(company_id, deliveries)
         message = {
             "job_id": str(job.id),
             "company_id": company_id,
@@ -94,7 +96,7 @@ class RoutesService:
                     "lat": _req_float(d.lat),
                     "lon": _req_float(d.lon),
                     "demand": float(d.weight),
-                    "service_time": d.service_time,
+                    "service_time": service_times[d.id],
                     "priority": d.priority,
                     "time_window": _time_window_seconds(d),
                 }
@@ -147,6 +149,7 @@ class RoutesService:
         self.session.add(job)
         await self.session.flush()
 
+        service_times = await self._service_times(company_id, remaining)
         message = {
             "job_id": str(job.id),
             "company_id": company_id,
@@ -158,7 +161,7 @@ class RoutesService:
                     "lat": _req_float(d.lat),
                     "lon": _req_float(d.lon),
                     "demand": float(d.weight),
-                    "service_time": d.service_time,
+                    "service_time": service_times[d.id],
                     "priority": d.priority,
                     "time_window": _time_window_seconds(d),
                 }
@@ -364,6 +367,15 @@ class RoutesService:
         if ids:
             stmt = stmt.where(Delivery.id.in_([uuid.UUID(i) for i in ids]))
         return list(await self.session.scalars(stmt))
+
+    async def _service_times(
+        self, company_id: str, deliveries: list[Delivery]
+    ) -> dict[uuid.UUID, int]:
+        """Per-delivery service time: ML prediction (F13) when trained, else stored."""
+        model = await ServiceTimeService(self.session).get_model(company_id)
+        if model is None:
+            return {d.id: d.service_time for d in deliveries}
+        return {d.id: predict(model.model, d) for d in deliveries}
 
     async def _remaining_deliveries(self, route_id: uuid.UUID) -> list[Delivery]:
         """Geocoded, not-yet-done stops on a route — the re-optimizable set (F9)."""

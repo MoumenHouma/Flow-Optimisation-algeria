@@ -15,6 +15,7 @@ from routeopt.models.optimization_job import OptimizationJob
 from routeopt.models.proof_of_delivery import ProofOfDelivery
 from routeopt.models.refresh_token import RefreshToken
 from routeopt.models.route import Route, RouteStop
+from routeopt.models.service_time_model import ServiceTimeModel
 from routeopt.models.user import User
 from routeopt.models.vehicle import Vehicle
 from routeopt.models.webhook import Webhook
@@ -31,6 +32,7 @@ __all__ = [
     "RefreshToken",
     "Route",
     "RouteStop",
+    "ServiceTimeModel",
     "User",
     "Vehicle",
     "Webhook",

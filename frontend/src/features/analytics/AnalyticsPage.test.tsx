@@ -39,11 +39,21 @@ const TRENDS = {
   ],
 };
 
+const UNTRAINED = {
+  trained: false,
+  sample_count: 0,
+  cohort_count: 0,
+  global_median_s: 300,
+  mae_seconds: null,
+  trained_at: null,
+};
+
 describe("AnalyticsPage", () => {
   it("renders KPIs, failure reasons and the driver leaderboard", async () => {
     mockFetch({
       "GET /api/v1/analytics/performance": () => ({ body: PERF }),
       "GET /api/v1/analytics/trends": () => ({ body: TRENDS }),
+      "GET /api/v1/predictions/service-time": () => ({ body: UNTRAINED }),
     });
     renderWithProviders(<AnalyticsPage />, { route: "/analytics" });
 
@@ -58,6 +68,7 @@ describe("AnalyticsPage", () => {
     const fetchMock = mockFetch({
       "GET /api/v1/analytics/performance": () => ({ body: PERF }),
       "GET /api/v1/analytics/trends": () => ({ body: TRENDS }),
+      "GET /api/v1/predictions/service-time": () => ({ body: UNTRAINED }),
     });
     const user = userEvent.setup();
     renderWithProviders(<AnalyticsPage />, { route: "/analytics" });
