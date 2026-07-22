@@ -23,6 +23,7 @@ from routeopt.modules.company.router import router as company_router
 from routeopt.modules.dashboard.router import router as dashboard_router
 from routeopt.modules.driver.router import router as driver_router
 from routeopt.modules.fleet.router import router as fleet_router
+from routeopt.modules.fuel.router import router as fuel_router
 from routeopt.modules.integrations.router import router as integrations_router
 from routeopt.modules.orders.router import router as orders_router
 from routeopt.modules.predictions.router import router as predictions_router
@@ -78,6 +79,7 @@ app.include_router(company_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 app.include_router(cod_router, prefix="/api/v1")
 app.include_router(billing_router, prefix="/api/v1")
+app.include_router(fuel_router, prefix="/api/v1")
 # Public partner API — key-authed, mounted off /api/public/v1 (F10).
 app.include_router(public_api_router, prefix="/api")
 

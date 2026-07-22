@@ -45,6 +45,8 @@ export interface BulkCreateResponse {
 
 export type VehicleType = "car" | "van" | "truck" | "motorcycle";
 
+export type FuelType = "essence" | "diesel" | "gpl" | "electric";
+
 export interface Vehicle {
   id: string;
   name: string;
@@ -52,6 +54,8 @@ export interface Vehicle {
   license_plate?: string;
   capacity_weight: number;
   capacity_volume: number;
+  fuel_range_km?: number | null;
+  fuel_type?: FuelType;
   depot_id?: string | null;
   depot: GeoPoint;
   depot_address: string;
@@ -268,6 +272,18 @@ export interface CodSummary {
   total_expected: number;
   total_collected: number;
   discrepancies: number;
+}
+
+// F20 fuel-shortage management.
+export type FuelStatus = "available" | "shortage" | "closed";
+
+export interface FuelStation {
+  id: string;
+  name: string;
+  location: GeoPoint;
+  fuel_types: string;
+  status: FuelStatus;
+  notes: string | null;
 }
 
 // F19 SaaS billing + quotas.

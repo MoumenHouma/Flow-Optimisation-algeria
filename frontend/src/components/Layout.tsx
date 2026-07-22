@@ -7,6 +7,7 @@ import {
   BarChart3,
   Banknote,
   CreditCard,
+  Fuel,
   Plug,
   ScrollText,
   LogOut,
@@ -28,6 +29,7 @@ const NAV = [
   { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
   { to: "/cod", label: "Encaissements", icon: Banknote, end: false },
   { to: "/billing", label: "Abonnement", icon: CreditCard, end: false },
+  { to: "/fuel", label: "Carburant", icon: Fuel, end: false },
   { to: "/developers", label: "Développeurs", icon: Plug, end: false },
   { to: "/audit-log", label: "Audit", icon: ScrollText, end: false },
 ];

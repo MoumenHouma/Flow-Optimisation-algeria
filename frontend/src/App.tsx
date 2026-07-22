@@ -7,6 +7,7 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
 import { BillingPage } from "@/features/billing/BillingPage";
 import { CodReconciliationPage } from "@/features/cod/CodReconciliationPage";
+import { FuelPage } from "@/features/fuel/FuelPage";
 import { AuditLogPage } from "@/features/settings/AuditLogPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { DriverPage } from "@/features/driver/DriverPage";
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/cod" element={<CodReconciliationPage />} />
         <Route path="/billing" element={<BillingPage />} />
+        <Route path="/fuel" element={<FuelPage />} />
         <Route path="/developers" element={<DevelopersPage />} />
         <Route path="/audit-log" element={<AuditLogPage />} />
       </Route>

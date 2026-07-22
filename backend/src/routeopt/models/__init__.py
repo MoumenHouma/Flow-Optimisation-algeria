@@ -13,6 +13,7 @@ from routeopt.models.company import Company
 from routeopt.models.delivery import Delivery
 from routeopt.models.delivery_status_history import DeliveryStatusHistory
 from routeopt.models.depot import Depot
+from routeopt.models.fuel_station import FuelStation
 from routeopt.models.invoice import Invoice
 from routeopt.models.optimization_job import OptimizationJob
 from routeopt.models.proof_of_delivery import ProofOfDelivery
@@ -34,6 +35,7 @@ __all__ = [
     "Delivery",
     "DeliveryStatusHistory",
     "Depot",
+    "FuelStation",
     "Invoice",
     "OptimizationJob",
     "ProofOfDelivery",

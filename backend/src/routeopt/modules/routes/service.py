@@ -117,6 +117,9 @@ class RoutesService:
                     "id": str(v.id),
                     "capacity": float(v.capacity_weight),
                     "vehicle_type": v.vehicle_type,
+                    "range_m": (
+                        float(v.fuel_range_km) * 1000 if v.fuel_range_km is not None else None
+                    ),
                     "depot": {"lat": float(v.depot_lat), "lon": float(v.depot_lon)},
                 }
                 for v in vehicles
@@ -186,6 +189,11 @@ class RoutesService:
                     "id": str(vehicle.id),
                     "capacity": float(vehicle.capacity_weight),
                     "vehicle_type": vehicle.vehicle_type,
+                    "range_m": (
+                        float(vehicle.fuel_range_km) * 1000
+                        if vehicle.fuel_range_km is not None
+                        else None
+                    ),
                     "depot": depot,
                 }
             ],

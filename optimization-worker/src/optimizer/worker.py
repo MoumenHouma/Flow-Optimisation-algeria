@@ -67,6 +67,7 @@ def _build_problem(payload: dict[str, Any]) -> VRPProblem:
             capacity=v["capacity"],
             depot=GeoPoint(v["depot"]["lat"], v["depot"]["lon"]),
             vehicle_type=v.get("vehicle_type", "car"),
+            range_m=v.get("range_m"),
         )
         for v in payload["vehicles"]
     ]
