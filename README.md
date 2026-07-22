@@ -58,6 +58,42 @@ cd frontend && npm install && npm run dev
 
 Qualité (cf. [`docs/RULES.md`](./docs/RULES.md)) : `ruff`, `mypy`, `black`, `pytest` (Python) · `eslint`, `prettier`, `vitest` (TS). Commits en [Conventional Commits](./docs/RULES.md#12-commit-convention-conventional-commits).
 
+### Tests
+
+```bash
+# Backend (les tests d'intégration DB tournent quand TEST_DATABASE_URL est défini)
+cd backend
+TEST_DATABASE_URL=postgresql+asyncpg://routeopt:routeopt@localhost:5432/routeopt \
+  pytest --cov=src            # ruff check . · black --check . · mypy src
+
+# Optimization worker (OR-Tools requis)
+cd optimization-worker && pytest      # ruff check . · black --check . · mypy src
+
+# Frontend
+cd frontend && npm run lint && npm run typecheck && npm run test -- --run && npm run build
+```
+
+La CI ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)) applique lint + types + tests + seuils de couverture sur chaque composant.
+
 ## Statut
 
-MVP en cours (Phase 1, F1–F7). Voir la roadmap dans [`docs/PRD.md`](./docs/PRD.md#3-fonctionnalités--mvp--roadmap).
+Phases 1–3 livrées : **F1–F16** implémentés.
+
+| # | Fonctionnalité | # | Fonctionnalité |
+|---|---|---|---|
+| F1 | Import + géocodage des livraisons | F9 | Ré-optimisation dynamique d'une tournée |
+| F2 | Décomposition des grandes instances (K-Means) | F10 | API publique + webhooks (HMAC) |
+| F3 | Optimisation VRP multi-objectif | F11 | Analytics (tendances + performance) |
+| F4 | Contraintes (capacité, fenêtres horaires) | F12 | Multi-dépôt |
+| F5 | Export tournée (PDF / Excel) | F13 | Temps de service prédit (ML par cohorte) |
+| F6 | Suivi temps réel des livraisons | F14 | Objectifs pondérés (distance / temps / carburant / CO₂) |
+| F7 | Repli glouton hors-ligne (approx. haversine) | F15 | Territoires (zones + affectation livreur) |
+| F8 | PWA livreur + preuve de livraison | F16 | Marque blanche (thème par entreprise) |
+
+Sécurité & conformité : isolation multi-tenant, RBAC (403), clés API hachées SHA-256,
+secrets webhook chiffrés (Fernet), rate limiting par plan, journal d'audit immuable
+(loi 18-07), révocation de session (familles de refresh tokens).
+
+Déploiement : voir [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md). API partenaire :
+[`docs/API.md`](./docs/API.md) · webhooks : [`docs/WEBHOOKS.md`](./docs/WEBHOOKS.md).
+Roadmap : [`docs/PRD.md`](./docs/PRD.md#3-fonctionnalités--mvp--roadmap).

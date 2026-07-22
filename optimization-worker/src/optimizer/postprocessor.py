@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from optimizer.models import VRPSolution
 
 
 def solution_to_result(
     solution: VRPSolution,
     duration_ms: int,
-    geometries: dict[str, dict] | None = None,
-) -> dict:
+    geometries: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Shape a VRPSolution into the JSONB stored on optimization_jobs.result.
 
     `geometries` maps vehicle_id -> GeoJSON LineString (OSRM /route); when absent

@@ -5,7 +5,12 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routeopt.core.dependencies import CurrentUser, get_current_user, require_roles
+from routeopt.core.dependencies import (
+    CurrentUser,
+    get_current_user,
+    rate_limiter,
+    require_roles,
+)
 from routeopt.database import get_session
 from routeopt.modules.orders.schemas import BulkCreateResponse, DeliveryIn, DeliveryOut
 from routeopt.modules.orders.service import OrdersService
@@ -19,6 +24,7 @@ async def create_deliveries(
     items: Annotated[list[DeliveryIn], Body(min_length=1, max_length=500)],
     session: SessionDep,
     user: Annotated[CurrentUser, Depends(require_roles("admin", "manager"))],
+    _: Annotated[None, Depends(rate_limiter)],
 ) -> BulkCreateResponse:
     """Create deliveries in bulk (F1). Rows with lat/lon skip geocoding."""
     deliveries = await OrdersService(session).bulk_create(user.company_id, items)

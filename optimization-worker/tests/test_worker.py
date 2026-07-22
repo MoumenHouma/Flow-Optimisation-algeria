@@ -6,6 +6,7 @@ No OSRM available, so the haversine fallback is exercised (used_osrm=False).
 import fakeredis.aioredis
 import pytest
 
+from optimizer import preprocessor
 from optimizer.worker import process_job
 
 # Two deliveries near Alger centre + a depot, one vehicle with enough capacity.
@@ -38,6 +39,32 @@ async def test_process_job_solves_with_haversine_fallback(redis_client) -> None:
 
     served = {s["delivery_id"] for r in result["routes"] for s in r["stops"]}
     assert served == {"d1", "d2"}
+
+
+async def test_process_job_decomposes_large_instance(redis_client, monkeypatch) -> None:
+    # Force decomposition on a tiny instance: two far-apart geographic clusters.
+    monkeypatch.setattr(preprocessor.settings, "decomposition_threshold", 2)
+    job = {
+        "job_id": "job-big",
+        "company_id": "co-1",
+        "depot": {"lat": 36.7538, "lon": 3.0588},
+        "constraints": {"respect_time_windows": False, "respect_capacity": True},
+        "deliveries": [
+            {"id": "a1", "lat": 36.75, "lon": 3.06, "demand": 1},
+            {"id": "a2", "lat": 36.76, "lon": 3.07, "demand": 1},
+            {"id": "b1", "lat": 35.69, "lon": -0.63, "demand": 1},
+            {"id": "b2", "lat": 35.70, "lon": -0.64, "demand": 1},
+        ],
+        "vehicles": [
+            {"id": "v1", "capacity": 100, "depot": {"lat": 36.7538, "lon": 3.0588}},
+            {"id": "v2", "capacity": 100, "depot": {"lat": 35.69, "lon": -0.63}},
+        ],
+    }
+    result = await process_job(job, redis_client)
+    assert result["status"] == "completed"
+    assert result["strategy"] == "decomposition"
+    served = {s["delivery_id"] for r in result["routes"] for s in r["stops"]}
+    assert served == {"a1", "a2", "b1", "b2"}
 
 
 async def test_process_job_reports_infeasible(redis_client) -> None:

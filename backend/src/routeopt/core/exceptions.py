@@ -31,6 +31,12 @@ class AuthError(RouteOptError):
     detail = "Not authenticated"
 
 
+class ForbiddenError(RouteOptError):
+    # Authenticated but not allowed (wrong role / insufficient scope).
+    status_code = 403
+    detail = "Forbidden"
+
+
 class ConflictError(RouteOptError):
     status_code = 409
     detail = "Resource already exists"

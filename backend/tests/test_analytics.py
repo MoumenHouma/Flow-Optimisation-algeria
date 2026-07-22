@@ -144,13 +144,13 @@ async def test_analytics_rejects_non_manager(ctx) -> None:
     client, sessionmaker = ctx
     await _register(client)
     await _seed(sessionmaker)
-    # A driver (non-manager) is rejected (require_roles -> AuthError/401).
+    # A driver (non-manager) is forbidden (insufficient role → 403).
     login = await client.post(
         "/api/v1/auth/login", json={"email": "amine@acme.dz", "password": "supersecret"}
     )
     driver_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
     resp = await client.get("/api/v1/analytics/performance", headers=driver_headers)
-    assert resp.status_code == 401
+    assert resp.status_code == 403
 
 
 async def test_empty_company_is_zeroed(ctx) -> None:

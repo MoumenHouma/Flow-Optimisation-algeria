@@ -154,6 +154,17 @@ export interface Branding {
   logo_url?: string | null;
 }
 
+export interface AuditEntry {
+  id: number;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  actor_user_id: string | null;
+  metadata: Record<string, unknown>;
+  ip_address: string | null;
+  created_at: string;
+}
+
 export interface Company {
   id: string;
   name: string;

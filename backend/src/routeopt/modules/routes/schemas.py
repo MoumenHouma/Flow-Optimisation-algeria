@@ -25,9 +25,15 @@ class OptimizeRequest(BaseModel):
     # Empty lists mean "all routable deliveries" / "all active vehicles".
     delivery_ids: list[str] = Field(default_factory=list, max_length=500)
     vehicle_ids: list[str] = Field(default_factory=list, max_length=50)
+    # F1: scope the job to one territory — routes its unassigned deliveries with
+    # the vehicle(s) of the territory's assigned driver (ignores vehicle_ids).
+    territory_id: str | None = None
     depot: GeoPoint | None = None
     constraints: OptimizationConstraints = OptimizationConstraints()
     objective: ObjectiveWeights = ObjectiveWeights()
+    # F4: when False, use the stored per-delivery service time instead of the
+    # trained ML prediction (F13). True keeps the ML estimate when a model exists.
+    apply_service_time_prediction: bool = True
 
 
 class ReoptimizeRequest(BaseModel):
@@ -37,6 +43,7 @@ class ReoptimizeRequest(BaseModel):
     current_lon: float | None = None
     constraints: OptimizationConstraints = OptimizationConstraints()
     objective: ObjectiveWeights = ObjectiveWeights()
+    apply_service_time_prediction: bool = True
 
 
 class OptimizeResponse(BaseModel):

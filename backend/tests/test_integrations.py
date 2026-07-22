@@ -9,6 +9,7 @@ TEST_DATABASE_URL.
 import json
 import os
 
+import fakeredis.aioredis
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -26,6 +27,13 @@ from routeopt.models.vehicle import Vehicle
 
 TEST_DB_URL = os.getenv("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+
+
+@pytest_asyncio.fixture(autouse=True)
+def _fake_redis(monkeypatch):
+    # The public-API per-key rate limiter (get_api_client) uses Redis.
+    client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr("routeopt.core.dependencies.redis_client", client)
 
 
 @pytest_asyncio.fixture
@@ -127,13 +135,26 @@ async def test_read_scope_cannot_write(ctx) -> None:
     # read scope can list...
     ok = await client.get("/api/public/v1/deliveries", headers={"X-API-Key": key})
     assert ok.status_code == 200
-    # ...but cannot create.
+    # ...but cannot create (insufficient scope → 403).
     denied = await client.post(
         "/api/public/v1/deliveries",
         headers={"X-API-Key": key},
         json={"address": "A", "lat": 36.75, "lon": 3.06},
     )
-    assert denied.status_code == 401
+    assert denied.status_code == 403
+
+
+async def test_public_api_is_rate_limited(ctx, monkeypatch) -> None:
+    monkeypatch.setattr("routeopt.core.api_auth._API_KEY_RATE_LIMIT", 2)
+    client, _ = ctx
+    headers, _ = await _admin(client)
+    key = await _make_key(client, headers, "read")
+
+    for _ in range(2):
+        ok = await client.get("/api/public/v1/deliveries", headers={"X-API-Key": key})
+        assert ok.status_code == 200
+    limited = await client.get("/api/public/v1/deliveries", headers={"X-API-Key": key})
+    assert limited.status_code == 429
 
 
 async def test_only_admin_manages_keys(ctx) -> None:
@@ -150,7 +171,7 @@ async def test_only_admin_manages_keys(ctx) -> None:
     )
     drv_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
     resp = await client.get("/api/v1/integrations/api-keys", headers=drv_headers)
-    assert resp.status_code == 401
+    assert resp.status_code == 403
 
 
 async def _seed_driver_route(sessionmaker) -> tuple[str, str]:

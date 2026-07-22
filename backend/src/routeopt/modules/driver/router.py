@@ -2,9 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from routeopt.core import audit
+from routeopt.core.audit import client_ip
 from routeopt.core.dependencies import CurrentUser, get_current_user
 from routeopt.core.exceptions import ValidationError
 from routeopt.core.storage import Storage, get_storage
@@ -27,7 +29,7 @@ async def my_route(
     user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> DriverRouteOut | None:
     """The active route for the vehicle assigned to me (null if none today)."""
-    return await DriverService(session).my_route(user.user_id)
+    return await DriverService(session).my_route(user.user_id, user.company_id)
 
 
 @router.put("/deliveries/{delivery_id}/status", response_model=DeliveryOut)
@@ -88,8 +90,22 @@ async def get_proof(
     session: SessionDep,
     storage: StorageDep,
     user: Annotated[CurrentUser, Depends(get_current_user)],
+    request: Request,
 ) -> ProofOut | None:
     """Fetch the stored proof for a delivery with presigned URLs (null if none)."""
-    return await DriverService(session).get_proof(
+    proof = await DriverService(session).get_proof(
         user.user_id, user.company_id, delivery_id, storage
     )
+    if proof is not None:
+        # Accessing proof media (photo/signature of the recipient) is auditable (H2).
+        await audit.record(
+            session,
+            action="proof.accessed",
+            resource_type="delivery",
+            company_id=user.company_id,
+            actor_user_id=user.user_id,
+            resource_id=delivery_id,
+            ip_address=client_ip(request),
+        )
+        await session.commit()
+    return proof

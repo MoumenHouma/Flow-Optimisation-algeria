@@ -6,6 +6,7 @@ audit_log, refresh_tokens) are documented in SCHEMA.md and added as features lan
 """
 
 from routeopt.models.api_key import ApiKey
+from routeopt.models.audit_log import AuditLog
 from routeopt.models.base import Base
 from routeopt.models.company import Company
 from routeopt.models.delivery import Delivery
@@ -23,6 +24,7 @@ from routeopt.models.webhook import Webhook
 
 __all__ = [
     "ApiKey",
+    "AuditLog",
     "Base",
     "Company",
     "Delivery",

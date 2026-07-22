@@ -12,7 +12,7 @@ from typing import Annotated
 import jwt
 from fastapi import Depends, Header
 
-from routeopt.core.exceptions import AuthError, RateLimitError
+from routeopt.core.exceptions import AuthError, ForbiddenError, RateLimitError
 from routeopt.core.security import decode_token
 from routeopt.redis_client import redis_client
 
@@ -58,23 +58,28 @@ def require_roles(*roles: str) -> Callable[[CurrentUser], Awaitable[CurrentUser]
 
     async def _check(user: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
         if user.role not in roles:
-            raise AuthError(f"Requires one of roles: {', '.join(roles)}")
+            # Authenticated but not allowed → 403, not 401.
+            raise ForbiddenError(f"Requires one of roles: {', '.join(roles)}")
         return user
 
     return _check
 
 
-async def rate_limiter(user: Annotated[CurrentUser, Depends(get_current_user)]) -> None:
-    """Fixed-window per-plan rate limit keyed on company (docs/SCHEMA.md §7)."""
-    limit = _PLAN_LIMITS.get(user.plan, _PLAN_LIMITS["free"])
-    if limit is None:  # unlimited (Enterprise)
+async def enforce_fixed_window(bucket: str, limit: int | None) -> None:
+    """Per-minute fixed-window limiter in Redis. None limit = unlimited."""
+    if limit is None:
         return
-    key = f"ratelimit:{user.company_id}:{_current_minute()}"
+    key = f"ratelimit:{bucket}:{_current_minute()}"
     count = await redis_client.incr(key)
     if count == 1:
         await redis_client.expire(key, 60)
     if count > limit:
         raise RateLimitError()
+
+
+async def rate_limiter(user: Annotated[CurrentUser, Depends(get_current_user)]) -> None:
+    """Fixed-window per-plan rate limit keyed on company (docs/SCHEMA.md §7)."""
+    await enforce_fixed_window(user.company_id, _PLAN_LIMITS.get(user.plan, _PLAN_LIMITS["free"]))
 
 
 def _current_minute() -> int:

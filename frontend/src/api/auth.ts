@@ -50,3 +50,25 @@ export function useLogin() {
     onSuccess: (data) => setTokens(data.access_token, data.refresh_token),
   });
 }
+
+// Revoke the refresh-token family server-side (M3), then clear local state.
+// Best-effort: a failed/absent server call still clears the client session.
+export function useLogout() {
+  const clear = useAuthStore((s) => s.clear);
+  return useMutation({
+    mutationFn: async () => {
+      const refreshToken = useAuthStore.getState().refreshToken;
+      if (refreshToken) {
+        try {
+          await apiFetch("/api/v1/auth/logout", {
+            method: "POST",
+            body: JSON.stringify({ refresh_token: refreshToken }),
+          });
+        } catch {
+          // Server unreachable or token already invalid — clear locally anyway.
+        }
+      }
+    },
+    onSettled: () => clear(),
+  });
+}

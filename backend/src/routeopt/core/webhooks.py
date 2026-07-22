@@ -21,6 +21,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from routeopt.core.crypto import decrypt
 from routeopt.models.webhook import Webhook
 
 logger = logging.getLogger("routeopt.webhooks")
@@ -76,5 +77,5 @@ class WebhookDispatcher:
         }
         body = json.dumps(payload, separators=(",", ":"))
         for w in targets:
-            await _post(w.url, event, body, w.secret)
+            await _post(w.url, event, body, decrypt(w.secret))
         return len(targets)

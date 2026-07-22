@@ -17,6 +17,7 @@ dependencies = [
 dev = [
     "ruff>=0.5",
     "black>=24.4",
+    "mypy>=1.10",
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",
@@ -37,6 +38,16 @@ src = ["src"]
 
 [tool.black]
 line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+
+# Third-party libs without type stubs.
+[[tool.mypy.overrides]]
+module = ["ortools.*", "numpy.*", "sklearn.*", "httpx", "redis.*", "fakeredis.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.exceptions import ConflictError, NotFoundError, ValidationError
 from routeopt.core.security import hash_password
+from routeopt.core.tenancy import validate_driver
 from routeopt.models.company import Company
 from routeopt.models.depot import Depot
 from routeopt.models.user import User
@@ -43,7 +44,7 @@ class FleetService:
             depot_lat=lat,
             depot_lon=lon,
             depot_address=address,
-            driver_user_id=uuid.UUID(payload.driver_user_id) if payload.driver_user_id else None,
+            driver_user_id=await validate_driver(self.session, company_id, payload.driver_user_id),
         )
         self.session.add(vehicle)
         await self.session.commit()
@@ -62,8 +63,8 @@ class FleetService:
         vehicle.depot_lat = lat
         vehicle.depot_lon = lon
         vehicle.depot_address = address
-        vehicle.driver_user_id = (
-            uuid.UUID(payload.driver_user_id) if payload.driver_user_id else None
+        vehicle.driver_user_id = await validate_driver(
+            self.session, company_id, payload.driver_user_id
         )
         await self.session.commit()
         await self.session.refresh(vehicle)

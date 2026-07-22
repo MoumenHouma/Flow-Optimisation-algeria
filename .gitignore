@@ -28,9 +28,12 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.prod.example
 *.pem
 *.key
 backend/keys/
+infra/secrets/
+infra/nginx/certs/
 
 # OSRM data (large, generated)
 infra/osrm/data/

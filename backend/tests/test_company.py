@@ -98,6 +98,6 @@ async def test_branding_update_is_admin_only(client) -> None:
     drv = {"Authorization": f"Bearer {login.json()['access_token']}"}
     # A driver can read the company...
     assert (await client.get("/api/v1/company", headers=drv)).status_code == 200
-    # ...but not change branding.
+    # ...but not change branding (insufficient role → 403).
     resp = await client.put("/api/v1/company/branding", headers=drv, json={"brand_name": "Nope"})
-    assert resp.status_code == 401
+    assert resp.status_code == 403

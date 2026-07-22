@@ -2,9 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from routeopt.core import audit
+from routeopt.core.audit import client_ip
 from routeopt.core.dependencies import CurrentUser, require_roles
 from routeopt.database import get_session
 from routeopt.modules.integrations.schemas import (
@@ -24,10 +26,21 @@ AdminDep = Annotated[CurrentUser, Depends(require_roles("admin"))]
 
 @router.post("/api-keys", response_model=ApiKeyCreated, status_code=201)
 async def create_api_key(
-    payload: ApiKeyCreate, session: SessionDep, user: AdminDep
+    payload: ApiKeyCreate, session: SessionDep, user: AdminDep, request: Request
 ) -> ApiKeyCreated:
     """Create a partner API key. The plaintext key is returned only once."""
     key, plaintext = await IntegrationsService(session).create_api_key(user.company_id, payload)
+    await audit.record(
+        session,
+        action="api_key.created",
+        resource_type="api_key",
+        company_id=user.company_id,
+        actor_user_id=user.user_id,
+        resource_id=key.id,
+        metadata={"name": payload.name},
+        ip_address=client_ip(request),
+    )
+    await session.commit()
     return ApiKeyCreated(**ApiKeyOut.from_model(key).model_dump(), key=plaintext)
 
 
@@ -38,17 +51,40 @@ async def list_api_keys(session: SessionDep, user: AdminDep) -> list[ApiKeyOut]:
 
 
 @router.delete("/api-keys/{key_id}", status_code=204)
-async def revoke_api_key(key_id: str, session: SessionDep, user: AdminDep) -> Response:
+async def revoke_api_key(
+    key_id: str, session: SessionDep, user: AdminDep, request: Request
+) -> Response:
     await IntegrationsService(session).revoke_api_key(user.company_id, key_id)
+    await audit.record(
+        session,
+        action="api_key.revoked",
+        resource_type="api_key",
+        company_id=user.company_id,
+        actor_user_id=user.user_id,
+        resource_id=key_id,
+        ip_address=client_ip(request),
+    )
+    await session.commit()
     return Response(status_code=204)
 
 
 @router.post("/webhooks", response_model=WebhookCreated, status_code=201)
 async def create_webhook(
-    payload: WebhookCreate, session: SessionDep, user: AdminDep
+    payload: WebhookCreate, session: SessionDep, user: AdminDep, request: Request
 ) -> WebhookCreated:
     """Register a webhook endpoint. The signing secret is returned only once."""
     webhook, secret = await IntegrationsService(session).create_webhook(user.company_id, payload)
+    await audit.record(
+        session,
+        action="webhook.created",
+        resource_type="webhook",
+        company_id=user.company_id,
+        actor_user_id=user.user_id,
+        resource_id=webhook.id,
+        metadata={"url": str(payload.url), "events": payload.events},
+        ip_address=client_ip(request),
+    )
+    await session.commit()
     return WebhookCreated(**WebhookOut.from_model(webhook).model_dump(), secret=secret)
 
 
@@ -59,6 +95,18 @@ async def list_webhooks(session: SessionDep, user: AdminDep) -> list[WebhookOut]
 
 
 @router.delete("/webhooks/{webhook_id}", status_code=204)
-async def delete_webhook(webhook_id: str, session: SessionDep, user: AdminDep) -> Response:
+async def delete_webhook(
+    webhook_id: str, session: SessionDep, user: AdminDep, request: Request
+) -> Response:
     await IntegrationsService(session).delete_webhook(user.company_id, webhook_id)
+    await audit.record(
+        session,
+        action="webhook.deleted",
+        resource_type="webhook",
+        company_id=user.company_id,
+        actor_user_id=user.user_id,
+        resource_id=webhook_id,
+        ip_address=client_ip(request),
+    )
+    await session.commit()
     return Response(status_code=204)

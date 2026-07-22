@@ -6,13 +6,14 @@ import {
   Map,
   BarChart3,
   Plug,
+  ScrollText,
   LogOut,
   Languages,
 } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
+import { useLogout } from "@/api/auth";
 import { useBranding } from "@/api/company";
-import { useAuthStore } from "@/stores/auth-store";
 import { isRTL, useUIStore } from "@/stores/ui-store";
 
 // App shell: top nav + routed content (docs/DESIGN.md §3.2, §6 RTL).
@@ -24,18 +25,21 @@ const NAV = [
   { to: "/territories", label: "Territoires", icon: Map, end: false },
   { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
   { to: "/developers", label: "Développeurs", icon: Plug, end: false },
+  { to: "/audit-log", label: "Audit", icon: ScrollText, end: false },
 ];
 
 export function Layout() {
   const navigate = useNavigate();
-  const clear = useAuthStore((s) => s.clear);
+  const logoutMutation = useLogout();
   const locale = useUIStore((s) => s.locale);
   const setLocale = useUIStore((s) => s.setLocale);
   const { brandName, logoUrl } = useBranding();
 
   const logout = () => {
-    clear();
-    navigate("/login", { replace: true });
+    // Revoke the refresh-token family server-side (M3), then bounce to login.
+    logoutMutation.mutate(undefined, {
+      onSettled: () => navigate("/login", { replace: true }),
+    });
   };
 
   return (
