@@ -24,6 +24,7 @@ from routeopt.modules.orders.router import router as orders_router
 from routeopt.modules.predictions.router import router as predictions_router
 from routeopt.modules.public_api.router import router as public_api_router
 from routeopt.modules.routes.router import router as routes_router
+from routeopt.modules.territories.router import router as territories_router
 
 settings = get_settings()
 
@@ -53,6 +54,7 @@ app.include_router(driver_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(integrations_router, prefix="/api/v1")
 app.include_router(predictions_router, prefix="/api/v1")
+app.include_router(territories_router, prefix="/api/v1")
 # Public partner API — key-authed, mounted off /api/public/v1 (F10).
 app.include_router(public_api_router, prefix="/api")
 

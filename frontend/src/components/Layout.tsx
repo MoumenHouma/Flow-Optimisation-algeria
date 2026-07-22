@@ -3,6 +3,7 @@ import {
   Upload,
   Navigation,
   Truck,
+  Map,
   BarChart3,
   Plug,
   LogOut,
@@ -19,6 +20,7 @@ const NAV = [
   { to: "/import", label: "Importer", icon: Upload, end: false },
   { to: "/optimize", label: "Optimiser", icon: Navigation, end: false },
   { to: "/fleet", label: "Flotte", icon: Truck, end: false },
+  { to: "/territories", label: "Territoires", icon: Map, end: false },
   { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
   { to: "/developers", label: "Développeurs", icon: Plug, end: false },
 ];

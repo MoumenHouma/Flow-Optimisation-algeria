@@ -134,6 +134,16 @@ class FleetService:
         vehicle.active = False
         await self.session.commit()
 
+    async def list_drivers(self, company_id: str) -> list[User]:
+        result = await self.session.scalars(
+            select(User).where(
+                User.company_id == uuid.UUID(company_id),
+                User.role == "driver",
+                User.deleted_at.is_(None),
+            )
+        )
+        return list(result)
+
     async def create_driver(self, company_id: str, payload: DriverIn) -> User:
         """Create a role=driver login so a manager can onboard + assign drivers (F8)."""
         driver = User(

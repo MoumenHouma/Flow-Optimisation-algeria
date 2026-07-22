@@ -35,6 +35,10 @@ class Delivery(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     route_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("routes.id", ondelete="SET NULL")
     )
+    # F15 multi-zone: the geographic territory this delivery belongs to.
+    territory_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("territories.id", ondelete="SET NULL")
+    )
     order_id: Mapped[str | None] = mapped_column(String(100))
     address: Mapped[str] = mapped_column(Text, nullable=False)
     address_locale: Mapped[str] = mapped_column(String(10), nullable=False, default="fr")

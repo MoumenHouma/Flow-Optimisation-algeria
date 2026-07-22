@@ -148,6 +148,22 @@ export interface WebhookCreated extends Webhook {
   secret: string;
 }
 
+export interface Territory {
+  id: string;
+  name: string;
+  color: string;
+  driver_user_id: string | null;
+  centroid: GeoPoint | null;
+  delivery_count: number;
+}
+
+export interface Driver {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+}
+
 export interface ServiceTimeModel {
   trained: boolean;
   sample_count: number;
