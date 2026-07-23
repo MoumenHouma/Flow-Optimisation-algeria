@@ -1,9 +1,9 @@
 import { CheckCircle, Navigation, Phone, XCircle, Loader2, LogOut } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useBranding } from "@/api/company";
-import { type DriverStatus, useMyRoute, useUpdateStatus } from "@/api/driver";
+import { type DriverStatus, useMyRoute, useReportLocation, useUpdateStatus } from "@/api/driver";
 import { useAuthStore } from "@/stores/auth-store";
 import type { DriverStop } from "@/types";
 
@@ -16,7 +16,26 @@ export function DriverPage() {
   const { brandName } = useBranding();
   const { data: route, isLoading } = useMyRoute();
   const update = useUpdateStatus();
+  const reportLocation = useReportLocation();
   const [proofStop, setProofStop] = useState<DriverStop | null>(null);
+
+  // F18: stream the driver's GPS while a route is active so the dispatcher map
+  // and customer tracking links stay live. Best-effort — geolocation may be off.
+  const hasRoute = !!route;
+  useEffect(() => {
+    if (!hasRoute || !navigator.geolocation) return;
+    const post = () =>
+      navigator.geolocation.getCurrentPosition(
+        (p) => reportLocation.mutate({ lat: p.coords.latitude, lon: p.coords.longitude }),
+        () => {},
+        { timeout: 5000, maximumAge: 10000 },
+      );
+    post();
+    const id = window.setInterval(post, 20000);
+    return () => window.clearInterval(id);
+    // reportLocation is stable; re-run only when a route appears/disappears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRoute]);
 
   const logout = () => {
     clear();

@@ -276,6 +276,20 @@ export interface CodSummary {
   discrepancies: number;
 }
 
+// F18 live tracking.
+export interface LivePosition {
+  vehicle_id: string;
+  lat: number;
+  lon: number;
+  ts: number;
+}
+
+export interface Track {
+  order_id: string | null;
+  status: string;
+  vehicle_position: LivePosition | null;
+}
+
 // F20 fuel-shortage management.
 export type FuelStatus = "available" | "shortage" | "closed";
 

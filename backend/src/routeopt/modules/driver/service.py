@@ -1,5 +1,6 @@
 """Driver runtime logic (F8): fetch my route, update delivery status + history."""
 
+import contextlib
 import uuid
 from datetime import UTC, datetime, time
 from decimal import Decimal
@@ -7,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from routeopt.config import get_settings
 from routeopt.core.exceptions import NotFoundError, ValidationError
 from routeopt.core.storage import Storage
 from routeopt.core.webhooks import WebhookDispatcher
@@ -22,6 +24,12 @@ from routeopt.modules.driver.schemas import (
     ProofOut,
     StatusUpdate,
 )
+from routeopt.modules.notifications.service import build_message, enqueue
+from routeopt.modules.tracking.service import write_position
+from routeopt.modules.tracking.tokens import make_token
+from routeopt.redis_client import redis_client
+
+_settings = get_settings()
 
 _ACTIVE_ROUTE_STATUSES = ("planned", "dispatched", "in_progress")
 
@@ -173,7 +181,34 @@ class DriverService:
                     "status": cod.status,
                 },
             )
+
+        # F18: notify the customer on status changes (enqueue only — never blocks).
+        await self._notify_customer(delivery)
         return delivery
+
+    async def _notify_customer(self, delivery: Delivery) -> None:
+        """Queue a customer SMS/WhatsApp for a status change (best-effort)."""
+        if not delivery.customer_phone:
+            return
+        tracking_url = f"{_settings.public_base_url}/track/{make_token(str(delivery.id))}"
+        body = build_message(status=delivery.status, tracking_url=tracking_url)
+        if body is None:
+            return
+        # Notifications never block a delivery update.
+        with contextlib.suppress(Exception):
+            await enqueue(redis_client, to=delivery.customer_phone, body=body, kind=delivery.status)
+
+    async def record_location(self, user_id: str, company_id: str, lat: float, lon: float) -> None:
+        """Store the calling driver's live vehicle position (F18 live tracking)."""
+        vehicle = await self.session.scalar(
+            select(Vehicle).where(
+                Vehicle.driver_user_id == uuid.UUID(user_id),
+                Vehicle.deleted_at.is_(None),
+            )
+        )
+        if vehicle is None:
+            raise NotFoundError("No vehicle assigned to this driver")
+        await write_position(redis_client, company_id, str(vehicle.id), lat, lon)
 
     async def _record_cod(
         self, delivery: Delivery, route: Route, user_id: str, payload: StatusUpdate

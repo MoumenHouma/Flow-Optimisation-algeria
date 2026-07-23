@@ -14,6 +14,7 @@ from routeopt.database import get_session
 from routeopt.modules.driver.schemas import DriverRouteOut, ProofOut, StatusUpdate
 from routeopt.modules.driver.service import DriverService
 from routeopt.modules.orders.schemas import DeliveryOut
+from routeopt.modules.tracking.schemas import PositionIn
 
 router = APIRouter(prefix="/driver", tags=["driver"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -30,6 +31,18 @@ async def my_route(
 ) -> DriverRouteOut | None:
     """The active route for the vehicle assigned to me (null if none today)."""
     return await DriverService(session).my_route(user.user_id, user.company_id)
+
+
+@router.post("/location", status_code=204)
+async def record_location(
+    payload: PositionIn,
+    session: SessionDep,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> None:
+    """Report the driver's current GPS position for live tracking (F18)."""
+    await DriverService(session).record_location(
+        user.user_id, user.company_id, payload.lat, payload.lon
+    )
 
 
 @router.put("/deliveries/{delivery_id}/status", response_model=DeliveryOut)

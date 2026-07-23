@@ -16,6 +16,8 @@ import { ImportPage } from "@/features/import/ImportPage";
 import { FleetPage } from "@/features/fleet/FleetPage";
 import { DevelopersPage } from "@/features/settings/DevelopersPage";
 import { TerritoriesPage } from "@/features/territories/TerritoriesPage";
+import { LiveTrackingPage } from "@/features/tracking/LiveTrackingPage";
+import { TrackPage } from "@/features/track/TrackPage";
 
 // Public auth routes + a protected shell (Layout) wrapping the app (DESIGN §3).
 export default function App() {
@@ -23,6 +25,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* F18: public customer tracking link — no auth, its own bare shell. */}
+      <Route path="/track/:token" element={<TrackPage />} />
 
       <Route
         element={
@@ -37,6 +41,7 @@ export default function App() {
         <Route path="/fleet" element={<FleetPage />} />
         <Route path="/territories" element={<TerritoriesPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/tracking" element={<LiveTrackingPage />} />
         <Route path="/cod" element={<CodReconciliationPage />} />
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/fuel" element={<FuelPage />} />

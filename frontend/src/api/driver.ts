@@ -39,6 +39,17 @@ export function useUpdateStatus() {
   });
 }
 
+// Report the driver's GPS position for live tracking (F18). Fire-and-forget.
+export function useReportLocation() {
+  return useMutation({
+    mutationFn: ({ lat, lon }: { lat: number; lon: number }) =>
+      apiFetch("/api/v1/driver/location", {
+        method: "POST",
+        body: JSON.stringify({ lat, lon }),
+      }),
+  });
+}
+
 interface ProofInput {
   deliveryId: string;
   photo?: Blob;

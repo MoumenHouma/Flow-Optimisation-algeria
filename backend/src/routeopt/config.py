@@ -53,6 +53,13 @@ class Settings(BaseSettings):
 
     sentry_dsn: str | None = None
 
+    # Live tracking + notifications (F18)
+    notify_queue: str = "queue:notifications"
+    live_position_ttl_s: int = 120  # a stale driver position expires after this
+    sms_provider: str = "noop"  # noop | log (real SMS/WhatsApp adapters plug in here)
+    # Base URL used to build public delivery-tracking links in notifications.
+    public_base_url: str = "http://localhost:5173"
+
     @model_validator(mode="after")
     def _guard_production(self) -> "Settings":
         """Fail fast on insecure defaults outside local/dev (docs/RULES.md §4.3)."""
