@@ -26,7 +26,11 @@ from routeopt.models.route import Route, RouteStop
 from routeopt.models.territory import Territory
 from routeopt.models.vehicle import Vehicle
 from routeopt.modules.predictions.service import ServiceTimeService, predict
-from routeopt.modules.routes.schemas import OptimizeRequest, ReoptimizeRequest
+from routeopt.modules.routes.schemas import (
+    OptimizeRequest,
+    ReassignRequest,
+    ReoptimizeRequest,
+)
 from routeopt.redis_client import redis_client
 
 settings = get_settings()
@@ -196,6 +200,86 @@ class RoutesService:
                     ),
                     "depot": depot,
                 }
+            ],
+        }
+        await redis_client.rpush(settings.optimize_queue, json.dumps(message))
+        await self.session.commit()
+        return str(job.id), len(remaining)
+
+    async def submit_reassign_job(
+        self, company_id: str, user_id: str, route_id: str, payload: ReassignRequest
+    ) -> tuple[str, int]:
+        """Drop a blocked vehicle and redistribute its remaining stops (F20).
+
+        Retires the blocked route, detaches its undelivered stops, and enqueues a
+        fresh multi-vehicle optimization over the *rest* of the active fleet. Uses
+        the normal (non-reoptimize) persist path, so new routes are created.
+        """
+        route = await self.get_route(company_id, route_id)
+        if route.vehicle_id is None:
+            raise ValidationError("Route has no vehicle to reassign")
+
+        remaining = await self._remaining_deliveries(route.id)
+        if not remaining:
+            raise ValidationError("No remaining stops to reassign")
+
+        available = [
+            v for v in await self._resolve_vehicles(company_id, []) if v.id != route.vehicle_id
+        ]
+        if not available:
+            raise ValidationError("No other active vehicle to take over the stops")
+
+        # Detach orphaned stops (routable again) and retire the blocked route.
+        for d in remaining:
+            d.route_id = None
+            d.status = "geocoded"
+        route.status = "cancelled"
+
+        job = OptimizationJob(
+            company_id=uuid.UUID(company_id),
+            requested_by_user_id=uuid.UUID(user_id),
+            trigger="reassign",
+            status="pending",
+            delivery_count=len(remaining),
+            vehicle_count=len(available),
+            created_at=datetime.now(UTC),
+        )
+        self.session.add(job)
+        await self.session.flush()
+
+        service_times = await self._service_times(
+            company_id, remaining, payload.apply_service_time_prediction
+        )
+        depot = {"lat": float(available[0].depot_lat), "lon": float(available[0].depot_lon)}
+        message = {
+            "job_id": str(job.id),
+            "company_id": company_id,
+            "depot": depot,
+            "constraints": payload.constraints.model_dump(),
+            "objective": payload.objective.model_dump(),
+            "deliveries": [
+                {
+                    "id": str(d.id),
+                    "lat": _req_float(d.lat),
+                    "lon": _req_float(d.lon),
+                    "demand": float(d.weight),
+                    "service_time": service_times[d.id],
+                    "priority": d.priority,
+                    "time_window": _time_window_seconds(d),
+                }
+                for d in remaining
+            ],
+            "vehicles": [
+                {
+                    "id": str(v.id),
+                    "capacity": float(v.capacity_weight),
+                    "vehicle_type": v.vehicle_type,
+                    "range_m": (
+                        float(v.fuel_range_km) * 1000 if v.fuel_range_km is not None else None
+                    ),
+                    "depot": {"lat": float(v.depot_lat), "lon": float(v.depot_lon)},
+                }
+                for v in available
             ],
         }
         await redis_client.rpush(settings.optimize_queue, json.dumps(message))
