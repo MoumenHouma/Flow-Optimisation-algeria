@@ -69,6 +69,8 @@ export interface VehicleDraft {
   license_plate?: string;
   capacity_weight: number;
   capacity_volume: number;
+  fuel_range_km?: number | null;
+  fuel_type?: FuelType;
   depot_id?: string;
   depot: GeoPoint;
   depot_address: string;

@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 
 import {
   EMPTY_VEHICLE_FORM,
+  FUEL_TYPES,
   parseVehicleForm,
   VEHICLE_TYPES,
   type VehicleFormErrors,
@@ -24,6 +25,13 @@ const TYPE_LABELS: Record<string, string> = {
   van: "Fourgon",
   truck: "Camion",
   motorcycle: "Moto",
+};
+
+const FUEL_LABELS: Record<string, string> = {
+  essence: "Essence",
+  diesel: "Diesel",
+  gpl: "GPL / Sirghaz",
+  electric: "Électrique",
 };
 
 // Reused for both add and edit (docs/DESIGN.md §2.4 form patterns).
@@ -107,6 +115,28 @@ export function VehicleForm({
             className={inputCls}
             value={values.capacity_volume}
             onChange={set("capacity_volume")}
+          />
+        </Field>
+        <Field label="Carburant" error={errors.fuel_type}>
+          <select
+            className={inputCls}
+            value={values.fuel_type}
+            onChange={(e) => setValues((v) => ({ ...v, fuel_type: e.target.value }))}
+          >
+            {FUEL_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {FUEL_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Autonomie (km, vide = illimitée)" error={errors.fuel_range_km}>
+          <input
+            type="number"
+            className={inputCls}
+            value={values.fuel_range_km}
+            onChange={set("fuel_range_km")}
+            placeholder="ex. 400"
           />
         </Field>
         {depots.length > 0 && (
