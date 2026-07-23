@@ -48,31 +48,29 @@ effort and pre-Phase-4 deliverables.
 - Compliance/observability: immutable `audit_log` + admin `GET /audit-log` + admin UI (loi 18-07), refresh-token families with reuse detection + `POST /auth/logout`, Sentry init.
 - Ops/CI/docs/tests: worker mypy + coverage gates, README refresh, `docs/DEPLOYMENT.md` / `API.md` / `WEBHOOKS.md`, `docker-compose.prod.yml` + `infra/nginx/` + `.env.prod.example`, more tests.
 
-**Phase 4 (PRD §3.4, F17–F20) — in progress:**
+**Phase 4 (PRD §3.4, F17–F20) — COMPLETE (2026-07-23):**
 
 | # | Feature | Status |
 |---|---|---|
 | F17 | COD reconciliation (`modules/cod`, `test_cod.py`, frontend `cod/` + test, migration 0013, SCHEMA §9.1) | ✅ done |
-| F18 | Real-time GPS tracking + SMS/WhatsApp notifications + tracking link | ❌ **not done** (no module) |
+| F18 | Real-time GPS tracking + SMS/WhatsApp notifications + tracking link (`modules/tracking` + `modules/notifications`, `test_tracking.py`; migration-free — positions in Redis, links = signed stateless tokens, SSE via `StreamingResponse`, notif consumer = lifespan asyncio task) | ✅ done |
 | F19 | SaaS billing + quotas, CCP/BaridiMob (`modules/billing`, `test_billing.py`, frontend `billing/` + test, migration 0014, SCHEMA §9.2) | ✅ done |
-| F20 | Fuel-shortage management — vehicle fuel range as an OR-Tools constraint + station availability (`modules/fuel`, `test_fuel.py`, frontend `fuel/` + test, migration 0015, worker `Vehicle.range_m`, SCHEMA §9.3) | ✅ done |
+| F20 | Fuel-shortage management — vehicle fuel range as an OR-Tools constraint + station availability (`modules/fuel`, `test_fuel.py`, frontend `fuel/` + test, migration 0015, worker `Vehicle.range_m`, SCHEMA §9.3); + blocked-vehicle replan (`POST /routes/{id}/reassign`, `test_reassign.py`, migration 0016) | ✅ done |
 
-Migrations present: **0001 → 0015**.
+Migrations present: **0001 → 0016**. **The full PRD roadmap (F1–F20) is shipped.**
 
-**Verified green (2026-07-23, local PG+Redis up):** backend **84** pytest
-(77% cov, CI gate 70) · worker **18** pytest (CI gate 75%) · frontend **55**
+**Verified green (2026-07-23, local PG+Redis up):** backend **88** pytest
+(CI gate 70) · worker **18** pytest (CI gate 75%) · frontend **58**
 vitest. `ruff`/`black`/`mypy`/`eslint`/`tsc` clean. (The DB-backed backend tests
 require Postgres **and** Redis running, or they error at setup — infra, not code.)
 
 ---
 
-## 3. Status — NOT done (before Phase 4)
+## 3. Status — NOT done (beyond the PRD)
 
-Do **not** assume these are finished:
+The PRD F-list (F1–F20) is fully shipped. These beyond-PRD items remain — do
+**not** assume they are finished:
 
-0. **F18 — real-time tracking + notifications** (the remaining Phase 4 feature) —
-   live driver GPS on the map + SMS/WhatsApp "en approche" alerts + public
-   tracking link (PRD §3.4). No module yet.
 1. **Real OSRM + Nominatim in a staging env** — blocked in the cloud sandbox
    (no Docker Hub / Geofabrik access). Config ready (`infra/osrm/prepare.sh`,
    compose `osrm` profile). This is a host action — doable from a machine with
@@ -101,11 +99,13 @@ Do **not** assume these are finished:
 | #5 | `claude/phase-4-hardening` (`38c9dd1`) | phase-3 | Phase 4 — Hardening, compliance & ops |
 
 - PR **#1** (old mega-PR) is **closed** — superseded by the stack.
-- ⚠️ **The Phase-4 feature work (F17/F19/F20) is not in any open PR.** It landed
-  on the dev branch after the split, so the dev branch tip is **ahead of PR #5**.
-  (PR #5 is titled "Phase 4 — Hardening" — that's the *hardening* batch, not the
-  PRD's F17–F20 Phase 4; don't confuse the two.) If you want these reviewed,
-  open a new PR from the dev branch, or fold them into the stack.
+- The **Phase-4 feature work (F17–F20 + reassign)** landed on the dev branch
+  after the split, so the dev branch tip is **ahead of PR #5**. A PR was opened
+  2026-07-23 (base `claude/phase-4-hardening` ← dev branch, ~12 commits) via a
+  GitHub compare URL — `gh` CLI is installed but **not authed**, so its number/
+  state isn't confirmed here; verify on GitHub. (PR #5 is titled "Phase 4 —
+  Hardening" — the *hardening* batch, not the PRD's F17–F20 Phase 4; don't
+  confuse the two.) These stacked PRs are **not yet merged**.
 
 To continue work, either keep developing on
 `claude/development-rules-guidelines-nzib0s`, or branch fresh from `main` once
@@ -181,23 +181,26 @@ cahier des charges 2025–2026).
 
 ---
 
-## 8. Next: finish Phase 4 (F17/F19/F20 done, F18 remaining)
+## 8. Next: beyond the PRD (F1–F20 all shipped)
 
-From `docs/PRD.md` §3.4:
-- **F18 — real-time tracking + notifications** (the only Phase 4 feature left):
-  live driver GPS on the manager map, SMS/WhatsApp "en approche" client alerts,
-  and a public tracking link. Reduces client-call load (PRD §2.1).
-- (Optional follow-ups) wire real payment-provider callbacks into F19 billing;
-  worker-side sklearn regressor upgrade for F13 service-time prediction.
-
-Beyond Phase 4 (product backlog, not in the PRD's F-list): driver-PWA offline
-mutation queue + background sync, turn-by-turn navigation.
+The PRD roadmap is complete. Remaining work is post-PRD (full plan at
+`~/.claude/plans/we-continue-working-on-enumerated-metcalfe.md`):
+- **Real OSRM + Nominatim locally** — clients already exist
+  (`optimization-worker/src/optimizer/distance_matrix.py`,
+  `backend/.../modules/orders/geocoding.py`); this is a data build
+  (`infra/osrm/prepare.sh`) + config, not new code. Biggest capability unlock.
+- **Production deployment** to a live host (`docs/DEPLOYMENT.md`,
+  `docker-compose.prod.yml`, `infra/nginx/`).
+- **Merge the stacked PRs** #2→#5 and fold in the Phase-4 feature work
+  (F17–F20 landed on the dev branch after the split — see §4).
+- **Product backlog:** driver-PWA offline mutation queue + background sync,
+  turn-by-turn navigation, real F19 payment-provider callbacks, worker-side
+  sklearn regressor upgrade for F13 service-time prediction.
 
 ---
 
 ## Suggested first prompt to resume
 
-> "Read CLAUDE.md and docs/PRD.md §3.4. F1–F16 + hardening + Phase 4 F17/F19/F20
-> are done (see docs/HANDOFF.md). Implement the last Phase 4 feature, **F18**
-> (live GPS tracking + SMS/WhatsApp notifications + tracking link). Propose a
-> plan first."
+> "Read CLAUDE.md and docs/HANDOFF.md. The full PRD roadmap F1–F20 is shipped.
+> Stand up real OSRM + Nominatim locally (data build + config; clients already
+> exist), then help me merge the stacked PRs. Propose a plan first."
