@@ -37,8 +37,12 @@ def upgrade() -> None:
         sa.Column("amount_da", sa.Numeric(12, 2), nullable=False, server_default="0"),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("canceled_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.CheckConstraint("plan IN ('free','starter','pro','enterprise')", name="check_sub_plan"),
         sa.CheckConstraint("status IN ('active','canceled')", name="check_sub_status"),
         sa.CheckConstraint("amount_da >= 0", name="check_sub_amount"),
@@ -68,8 +72,12 @@ def upgrade() -> None:
         sa.Column("reference", sa.String(255), nullable=True),
         sa.Column("issued_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("paid_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.UniqueConstraint("company_id", "period", name="uq_invoice_company_period"),
         sa.CheckConstraint("status IN ('pending','paid','void')", name="check_invoice_status"),
         sa.CheckConstraint(

@@ -115,8 +115,7 @@ class VRPSolver:
 
             range_idx = routing.RegisterTransitCallback(range_cb)
             caps = [
-                int(v.range_m) if v.range_m is not None else _UNLIMITED_M
-                for v in problem.vehicles
+                int(v.range_m) if v.range_m is not None else _UNLIMITED_M for v in problem.vehicles
             ]
             routing.AddDimensionWithVehicleCapacity(range_idx, 0, caps, True, "Range")
 

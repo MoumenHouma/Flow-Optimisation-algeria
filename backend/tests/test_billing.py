@@ -6,6 +6,7 @@ recording an offline payment into a paid invoice, and admin-only gating.
 
 import os
 
+import fakeredis.aioredis
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -23,7 +24,15 @@ pytestmark = pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not s
 
 
 @pytest_asyncio.fixture
-async def ctx():
+async def fake_redis(monkeypatch):
+    client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr("routeopt.modules.routes.service.redis_client", client)
+    monkeypatch.setattr("routeopt.core.dependencies.redis_client", client)
+    return client
+
+
+@pytest_asyncio.fixture
+async def ctx(fake_redis):
     engine = create_async_engine(TEST_DB_URL)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -132,4 +141,4 @@ async def test_change_plan_is_admin_only(ctx) -> None:
     await _seed(sessionmaker)
     manager = await _login(client, "khaled@acme.dz")
     resp = await client.put("/api/v1/billing/plan", headers=manager, json={"plan": "pro"})
-    assert resp.status_code == 401
+    assert resp.status_code == 403

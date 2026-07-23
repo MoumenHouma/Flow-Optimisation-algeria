@@ -79,12 +79,13 @@ class BillingService:
         )
 
     async def _active_subscription(self, company_id: str) -> Subscription | None:
-        return await self.session.scalar(
+        sub: Subscription | None = await self.session.scalar(
             select(Subscription).where(
                 Subscription.company_id == uuid.UUID(company_id),
                 Subscription.status == "active",
             )
         )
+        return sub
 
     async def get_billing(self, company_id: str) -> BillingOut:
         company = await self._company(company_id)

@@ -172,4 +172,4 @@ async def test_cod_requires_manager(ctx) -> None:
     driver_h = await _login(client, "amine@acme.dz", "supersecret")
     # A driver may not read the manager reconciliation view.
     resp = await client.get("/api/v1/cod/payments", headers=driver_h)
-    assert resp.status_code == 401
+    assert resp.status_code == 403

@@ -115,7 +115,7 @@ async def test_driver_cannot_manage_stations(ctx) -> None:
         headers=driver,
         json={"name": "X", "location": {"lat": 36.7, "lon": 3.1}},
     )
-    assert resp.status_code == 401
+    assert resp.status_code == 403
 
 
 async def test_vehicle_carries_fuel_range(ctx) -> None:

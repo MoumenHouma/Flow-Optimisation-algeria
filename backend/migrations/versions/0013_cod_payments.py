@@ -35,9 +35,7 @@ def upgrade() -> None:
 
     op.create_table(
         "cod_payments",
-        sa.Column(
-            "id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")
-        ),
+        sa.Column("id", UUID, primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column(
             "company_id",
             UUID,
@@ -68,8 +66,12 @@ def upgrade() -> None:
         sa.Column("method", sa.String(20), nullable=False, server_default="cash"),
         sa.Column("status", sa.String(20), nullable=False, server_default="collected"),
         sa.Column("collected_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.UniqueConstraint("delivery_id", name="uq_cod_delivery"),
         sa.CheckConstraint("method IN ('cash','baridimob','ccp','none')", name="check_cod_method"),
         sa.CheckConstraint(

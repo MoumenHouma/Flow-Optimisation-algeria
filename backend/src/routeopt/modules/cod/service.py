@@ -9,7 +9,7 @@ record reconciled or flag a discrepancy. Read/write is always tenant-scoped by
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.core.exceptions import NotFoundError
@@ -34,7 +34,7 @@ class CodService:
         driver_id: str | None,
         date_from: date | None,
         date_to: date | None,
-    ):
+    ) -> Select[tuple[CodPayment]]:
         query = select(CodPayment).where(CodPayment.company_id == uuid.UUID(company_id))
         if route_id is not None:
             query = query.where(CodPayment.route_id == uuid.UUID(route_id))
