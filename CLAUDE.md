@@ -1,5 +1,8 @@
 # RouteOpt — project memory
 
+For a fuller session-resume brief (run commands, git/PR state, code map, sales
+assets), see [`docs/HANDOFF.md`](docs/HANDOFF.md).
+
 SaaS delivery-route optimizer for the Algerian market. Monorepo:
 `backend/` (FastAPI modular monolith), `optimization-worker/` (OR-Tools, DB-free),
 `frontend/` (React + Vite + TS). Data: PostgreSQL+PostGIS, Redis, S3/MinIO.
