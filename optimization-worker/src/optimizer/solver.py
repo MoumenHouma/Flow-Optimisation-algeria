@@ -8,16 +8,16 @@ time windows), Capacity (unary demand).
 
 from __future__ import annotations
 
-from ortools.constraint_solver import pywrapcp, routing_enums_pb2
-
 from collections.abc import Callable
+
+from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
 from optimizer.costs import EmissionFactors, arc_cost, co2_g, factors_for, fuel_ml
 from optimizer.distance_matrix import DistanceMatrix
 from optimizer.fallback import greedy_nearest_neighbor
 from optimizer.models import (
-    ORToolsTimeoutError,
     OptimizationError,
+    ORToolsTimeoutError,
     RouteStop,
     VehicleRoute,
     VRPProblem,

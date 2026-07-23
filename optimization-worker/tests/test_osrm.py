@@ -47,7 +47,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     response: dict = OSRM_OK  # /table response
     route_response: dict = OSRM_ROUTE_OK  # /route response
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         payload = (
             type(self).route_response if self.path.startswith("/route") else type(self).response
         )
