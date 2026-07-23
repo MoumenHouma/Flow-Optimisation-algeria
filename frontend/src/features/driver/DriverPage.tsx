@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 
 import { useBranding } from "@/api/company";
 import { type DriverStatus, useMyRoute, useReportLocation, useUpdateStatus } from "@/api/driver";
+import { useOfflineQueue } from "@/hooks/useOfflineQueue";
+import { startOfflineSync } from "@/lib/offline-queue";
 import { useAuthStore } from "@/stores/auth-store";
 import type { DriverStop } from "@/types";
 
@@ -17,7 +19,13 @@ export function DriverPage() {
   const { data: route, isLoading } = useMyRoute();
   const update = useUpdateStatus();
   const reportLocation = useReportLocation();
+  const { pending } = useOfflineQueue();
   const [proofStop, setProofStop] = useState<DriverStop | null>(null);
+
+  // Phase D: replay any queued mutations on reconnect / app load.
+  useEffect(() => {
+    startOfflineSync();
+  }, []);
 
   // F18: stream the driver's GPS while a route is active so the dispatcher map
   // and customer tracking links stay live. Best-effort — geolocation may be off.
@@ -64,6 +72,15 @@ export function DriverPage() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-neutral-50">
       <header className="sticky top-0 flex items-center justify-between bg-white px-4 py-3 shadow-sm">
         <span className="font-bold text-primary">{brandName} 📦</span>
+        {pending > 0 && (
+          <span
+            role="status"
+            aria-label={`${pending} mise(s) à jour en attente de synchronisation`}
+            className="ml-auto mr-3 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning"
+          >
+            ⏳ {pending} en attente
+          </span>
+        )}
         <button onClick={logout} aria-label="Déconnexion" className="rounded p-1 text-neutral-500">
           <LogOut className="h-5 w-5" aria-hidden="true" />
         </button>
