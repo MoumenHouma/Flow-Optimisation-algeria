@@ -8,20 +8,37 @@ SaaS delivery-route optimizer for the Algerian market. Monorepo:
 `frontend/` (React + Vite + TS). Data: PostgreSQL+PostGIS, Redis, S3/MinIO.
 Normative docs live in `docs/` (PRD, ARCHITECTURE, SCHEMA, RULES, DESIGN).
 
-## Status (as of 2026-07-22)
+## Status (as of 2026-07-23)
 
-Phases 1–3 delivered — **F1–F16** implemented, tested, green. A four-batch
+Phases 1–3 delivered — **F1–F16** implemented, tested, green — plus a four-batch
 hardening effort (security, optimization correctness, compliance/observability,
-ops/CI/docs/tests), the admin audit-log UI, and production deploy artifacts are
-also done. The original mega-PR #1 was split into a stacked chain **#2→#5**
-(Phase 1→4) and #1 was closed.
+ops/CI/docs/tests), the admin audit-log UI, and production deploy artifacts.
 
-Development happens on `claude/development-rules-guidelines-nzib0s` (its tip
-equals PR #5 / `claude/phase-4-hardening`).
+**Phase 4 (PRD §3.4, F17–F20) in progress:** F17 (COD reconciliation), F19 (SaaS
+billing + quotas) and F20 (fuel-shortage management) are delivered — modules
+`cod` / `billing` / `fuel`, migrations 0013–0015, backend + frontend tests.
+**F18 (live GPS tracking + SMS/WhatsApp client notifications) is NOT done.**
+Migrations now run **0001 → 0015**.
 
-## Outstanding — NOT done (before Phase 4)
+The mega-PR #1 was split into a stacked chain **#2→#5** (#1 closed). ⚠️ The
+Phase-4 feature work (F17/F19/F20) landed on the dev branch **after** that split,
+so it is **not in any open PR** — the dev branch tip is ahead of PR #5.
+(Note the naming clash: PR #5 is titled "Phase 4 — Hardening", which is the
+*hardening* batch, not the PRD's F17–F20 Phase 4.)
 
-These are intentionally incomplete. Do not assume they are finished.
+Development happens on `claude/development-rules-guidelines-nzib0s`.
+
+Verified green (2026-07-23, local PG+Redis): backend **84** pytest (77% cov,
+CI gate 70) · worker **18** pytest (CI gate 75%) · frontend **55** vitest.
+
+## Outstanding — NOT done
+
+These are incomplete. Do not assume they are finished.
+
+0. **F18 — real-time tracking + notifications** (Phase 4) — NOT done.
+   Live driver GPS on the map + SMS/WhatsApp "en approche" client alerts +
+   public tracking link (PRD §3.4). No module exists yet. This is the remaining
+   Phase 4 feature.
 
 1. **Stand up real OSRM + Nominatim in a staging environment** — NOT done.
    Blocked in the build sandbox (network policy blocks Docker Hub / Geofabrik).
@@ -43,11 +60,15 @@ These are intentionally incomplete. Do not assume they are finished.
 
 ## Verify (before any push)
 
+The DB-backed backend tests need **Postgres + Redis running** (else they error at
+setup with connection-refused — that's infra, not a code failure).
+
 - Backend: `cd backend && ruff check . && black --check . && mypy src && TEST_DATABASE_URL=postgresql+asyncpg://routeopt:routeopt@localhost:5432/routeopt pytest`
 - Worker: `cd optimization-worker && ruff check . && black --check . && mypy src && pytest`
 - Frontend: `cd frontend && npm run lint && npm run typecheck && npm run test -- --run && npm run build`
 
-## Next: Phase 4 (not started)
+## Next: finish Phase 4
 
-Payments (CCP/BaridiMob), driver-PWA offline mutation queue + background sync,
-turn-by-turn navigation. See `docs/PRD.md`.
+Remaining Phase 4 feature: **F18** (live GPS tracking + SMS/WhatsApp client
+notifications + tracking link). F17/F19/F20 are done; F19 already covers
+CCP/BaridiMob billing per PRD §3.4. See `docs/PRD.md` §3.4 and `docs/HANDOFF.md`.
