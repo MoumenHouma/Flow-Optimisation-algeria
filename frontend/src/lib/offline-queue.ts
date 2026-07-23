@@ -187,6 +187,7 @@ async function refreshAccessToken(): Promise<boolean> {
       const data = await apiFetch<{ access_token: string; refresh_token: string }>(
         "/api/v1/auth/refresh",
         { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) },
+        { suppressAuthRedirect: true },
       );
       useAuthStore.getState().setTokens(data.access_token, data.refresh_token);
       return true;
@@ -203,10 +204,11 @@ async function refreshAccessToken(): Promise<boolean> {
 
 async function send(item: Required<QueueItem>): Promise<void> {
   if (item.kind === "status") {
-    await apiFetch(`/api/v1/driver/deliveries/${item.deliveryId}/status`, {
-      method: "PUT",
-      body: JSON.stringify(item.body),
-    });
+    await apiFetch(
+      `/api/v1/driver/deliveries/${item.deliveryId}/status`,
+      { method: "PUT", body: JSON.stringify(item.body) },
+      { suppressAuthRedirect: true },
+    );
     return;
   }
   const form = new FormData();
@@ -214,7 +216,9 @@ async function send(item: Required<QueueItem>): Promise<void> {
   if (item.sigBuf) form.append("signature", new Blob([item.sigBuf], { type: item.sigType }), "signature.png");
   if (item.lat != null) form.append("lat", String(item.lat));
   if (item.lon != null) form.append("lon", String(item.lon));
-  await apiUpload(`/api/v1/driver/deliveries/${item.deliveryId}/proof`, form);
+  await apiUpload(`/api/v1/driver/deliveries/${item.deliveryId}/proof`, form, {
+    suppressAuthRedirect: true,
+  });
 }
 
 let flushing = false;

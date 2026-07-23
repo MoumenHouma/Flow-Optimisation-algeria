@@ -48,6 +48,7 @@ describe("offline-queue", () => {
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/v1/driver/deliveries/d1/status",
       expect.objectContaining({ method: "PUT" }),
+      expect.objectContaining({ suppressAuthRedirect: true }),
     );
     expect(getCountSnapshot()).toBe(0);
   });

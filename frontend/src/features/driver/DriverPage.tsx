@@ -1,5 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, Navigation, Phone, XCircle, Loader2, LogOut } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useBranding } from "@/api/company";
@@ -22,10 +23,23 @@ export function DriverPage() {
   const { pending } = useOfflineQueue();
   const [proofStop, setProofStop] = useState<DriverStop | null>(null);
 
+  const queryClient = useQueryClient();
+
   // Phase D: replay any queued mutations on reconnect / app load.
   useEffect(() => {
     startOfflineSync();
   }, []);
+
+  // When the queue drains, reconcile the optimistic cache with server truth: a
+  // synced stop confirms delivered; a dead-lettered one reverts so it resurfaces
+  // (never silently left "delivered" when the server didn't record it).
+  const prevPending = useRef(pending);
+  useEffect(() => {
+    if (prevPending.current > 0 && pending === 0) {
+      queryClient.invalidateQueries({ queryKey: ["driver", "route"] });
+    }
+    prevPending.current = pending;
+  }, [pending, queryClient]);
 
   // F18: stream the driver's GPS while a route is active so the dispatcher map
   // and customer tracking links stay live. Best-effort — geolocation may be off.
