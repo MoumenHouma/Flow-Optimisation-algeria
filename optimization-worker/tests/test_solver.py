@@ -139,3 +139,44 @@ def test_normalized_objective_balances_distance_and_time() -> None:
     # the much faster tour instead — the pre-normalization objective was
     # distance-dominated and tied here.
     assert order(ObjectiveWeights(distance=1.0, time=1.0, fuel=1.0, co2=0.5)) == ["2", "1"]
+
+
+def _range_problem(range_m: float | None) -> VRPProblem:
+    # Depot + two deliveries, each 100m from the depot, 150m apart. One vehicle
+    # serving both drives 350m (0->1->2->0); serving one alone drives 200m.
+    depot = GeoPoint(36.7538, 3.0588)
+    return VRPProblem(
+        depot=depot,
+        deliveries=[
+            Delivery(id="1", lat=36.75, lon=3.06, demand=1),
+            Delivery(id="2", lat=36.76, lon=3.07, demand=1),
+        ],
+        vehicles=[
+            Vehicle(id="va", capacity=10, depot=depot, range_m=range_m),
+            Vehicle(id="vb", capacity=10, depot=depot, range_m=range_m),
+        ],
+        respect_time_windows=False,
+    )
+
+
+def _matrix_range() -> DistanceMatrix:
+    d = [[0, 100, 100], [100, 0, 150], [100, 150, 0]]
+    return DistanceMatrix(durations=d, distances=d)
+
+
+def test_range_constraint_splits_route_across_vehicles() -> None:
+    solver = VRPSolver(time_limit_seconds=5)
+    matrix = _matrix_range()
+
+    # No range: cheapest is one vehicle serving both stops (350 < 2*200).
+    unlimited = solver.solve(_range_problem(None), matrix)
+    used_unlimited = {r.vehicle_id for r in unlimited.routes if r.stops}
+    assert len(used_unlimited) == 1
+
+    # Range 250m: no vehicle can drive the 350m both-stops tour, so the solver
+    # must split the work — each route stays within its fuel range (F20).
+    limited = solver.solve(_range_problem(250), matrix)
+    served = {s.delivery_id for r in limited.routes for s in r.stops}
+    assert served == {"1", "2"}
+    assert len([r for r in limited.routes if r.stops]) == 2
+    assert all(r.total_distance_m <= 250 for r in limited.routes if r.stops)

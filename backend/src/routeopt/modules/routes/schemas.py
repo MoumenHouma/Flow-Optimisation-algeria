@@ -46,6 +46,15 @@ class ReoptimizeRequest(BaseModel):
     apply_service_time_prediction: bool = True
 
 
+class ReassignRequest(BaseModel):
+    # F20: a vehicle is blocked (fuel shortage, breakdown). Drop it and redistribute
+    # its remaining stops across the rest of the active fleet.
+    reason: str | None = None
+    constraints: OptimizationConstraints = OptimizationConstraints()
+    objective: ObjectiveWeights = ObjectiveWeights()
+    apply_service_time_prediction: bool = True
+
+
 class OptimizeResponse(BaseModel):
     job_id: str
     status: JobStatus

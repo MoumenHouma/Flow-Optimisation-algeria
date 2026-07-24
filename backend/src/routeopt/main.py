@@ -17,16 +17,20 @@ from routeopt.database import get_session
 from routeopt.modules.analytics.router import router as analytics_router
 from routeopt.modules.audit.router import router as audit_router
 from routeopt.modules.auth.router import router as auth_router
+from routeopt.modules.billing.router import router as billing_router
+from routeopt.modules.cod.router import router as cod_router
 from routeopt.modules.company.router import router as company_router
 from routeopt.modules.dashboard.router import router as dashboard_router
 from routeopt.modules.driver.router import router as driver_router
 from routeopt.modules.fleet.router import router as fleet_router
+from routeopt.modules.fuel.router import router as fuel_router
 from routeopt.modules.integrations.router import router as integrations_router
 from routeopt.modules.orders.router import router as orders_router
 from routeopt.modules.predictions.router import router as predictions_router
 from routeopt.modules.public_api.router import router as public_api_router
 from routeopt.modules.routes.router import router as routes_router
 from routeopt.modules.territories.router import router as territories_router
+from routeopt.modules.tracking.router import router as tracking_router
 
 settings = get_settings()
 
@@ -49,7 +53,18 @@ def _init_sentry() -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
     _init_sentry()
-    yield
+    # F18: drain the customer-notification queue in the background (no separate
+    # process). The task is cancelled on shutdown.
+    import asyncio
+
+    from routeopt.modules.notifications.service import run_consumer
+    from routeopt.redis_client import redis_client
+
+    consumer = asyncio.create_task(run_consumer(redis_client))
+    try:
+        yield
+    finally:
+        consumer.cancel()
 
 
 app = FastAPI(
@@ -74,6 +89,10 @@ app.include_router(predictions_router, prefix="/api/v1")
 app.include_router(territories_router, prefix="/api/v1")
 app.include_router(company_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
+app.include_router(cod_router, prefix="/api/v1")
+app.include_router(billing_router, prefix="/api/v1")
+app.include_router(fuel_router, prefix="/api/v1")
+app.include_router(tracking_router, prefix="/api/v1")
 # Public partner API — key-authed, mounted off /api/public/v1 (F10).
 app.include_router(public_api_router, prefix="/api")
 

@@ -200,6 +200,33 @@ CREATE INDEX idx_audit_log_resource ON audit_log(resource_type, resource_id);
 
 > Rétention : purge automatique après 1 an sauf obligation légale (ARCHITECTURE §5.2).
 
+### 3.7 `password_reset_tokens`
+
+Récupération de compte : lien à usage unique, valable 60 min par défaut
+(`PASSWORD_RESET_EXPIRE_MINUTES`). Même discipline de stockage que §3.3 — seul le
+hash est persisté, le token en clair ne circule que dans l'email.
+
+```sql
+CREATE TABLE password_reset_tokens (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash   VARCHAR(255) NOT NULL, -- SHA-256, jamais le token en clair
+    expires_at   TIMESTAMPTZ NOT NULL,
+    used_at      TIMESTAMPTZ NULL,      -- consommé : le lien ne fonctionne qu'une fois
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_password_reset_hash UNIQUE (token_hash)
+);
+
+CREATE INDEX ix_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+```
+
+> Consommer un lien invalide **tous** les autres liens en attente de cet utilisateur et
+> révoque **toutes** ses sessions (`refresh_tokens`), pas seulement la famille courante :
+> un changement de mot de passe met fin à toutes les sessions.
+> `POST /auth/forgot-password` répond toujours `202`, même pour une adresse inconnue
+> (pas d'énumération d'utilisateurs), et est limité par IP.
+
 ---
 
 ## 4. Flotte
@@ -501,14 +528,54 @@ est trop faible pour justifier un index GiST.
 
 ### 8.3 Ce qui reste hors schéma MVP
 
-- **Facturation/paiement** (CCP, BaridiMob, COD — PRD §4.1) : nécessite un fournisseur
-  de paiement choisi avant de figer un schéma ; à modéliser quand l'intégration
-  concrète sera spécifiée, pas en spéculatif.
 - **Prédiction ML du temps de service** (F13) et **optimisation multi-objectif** (F14) :
   consomment `delivery_status_history` et `optimization_jobs.result` en lecture, sans
   nouvelle table nécessaire au moment de l'entraînement offline.
 - **White-label** (F16) : configuration d'apparence, pas de donnée métier — vivra dans
   `companies` sous forme d'un champ `branding JSONB` le jour où il sera implémenté.
+
+---
+
+## 9. Phase 4 — Monétisation & Terrain (F17–F20)
+
+### 9.1 `cod_payments` (F17 — paiement à la livraison)
+
+Un enregistrement de rapprochement par livraison encaissée. Migration `0013`.
+
+| Colonne | Type | Notes |
+|---------|------|-------|
+| `id` | UUID PK | |
+| `company_id` | UUID FK→companies | CASCADE, isolation tenant |
+| `delivery_id` | UUID FK→deliveries | CASCADE ; **UNIQUE** (un rapprochement par livraison) |
+| `route_id` | UUID FK→routes | SET NULL |
+| `driver_user_id` | UUID FK→users | SET NULL |
+| `amount_expected` | Numeric(12,2) | copié de `deliveries.cod_amount` à l'encaissement |
+| `amount_collected` | Numeric(12,2) | espèce réellement collectée |
+| `currency` | String(3) | défaut `DZD` |
+| `method` | String(20) | `cash` \| `baridimob` \| `ccp` \| `none` |
+| `status` | String(20) | `pending` \| `collected` \| `reconciled` \| `discrepancy` |
+| `collected_at` | timestamptz | |
+
+Colonnes ajoutées à `deliveries` (migration `0013`) : `cod_amount Numeric(12,2)` (total
+dû à l'arrêt, saisi à l'import ; NULL = prépayé), `cod_currency String(3)` défaut `DZD`.
+
+### 9.2 `subscriptions` + `invoices` (F19 — facturation SaaS)
+
+Migration `0014`. `subscriptions` : une ligne active par company reflétant la formule
+facturée (`plan`, `status` active|canceled, `amount_da`, `started_at`, `canceled_at`) ;
+le changement de formule clôt l'ancienne et en ouvre une nouvelle (historique). `invoices` :
+une charge par période `YYYY-MM` (`period` UNIQUE par company, `plan`, `amount_da`,
+`status` pending|paid|void, `method` cash|ccp|baridimob|stripe, `reference`, `issued_at`,
+`paid_at`). Montants en DZD (PRD §5.1). Les plafonds de formule vivent sur `companies`
+(`max_vehicles`, `max_deliveries_per_day`) et sont l'autorité pour l'application des quotas.
+
+### 9.3 `fuel_stations` + colonnes carburant véhicule (F20)
+
+Migration `0015`. `fuel_stations` (company-scoped, soft-delete) : `name`, `lat`/`lon`,
+`fuel_types` (CSV : essence,diesel,gpl,electric), `status` available|shortage|closed,
+`notes`. Colonnes ajoutées à `vehicles` : `fuel_range_km Numeric(8,2)` (NULL = illimité ;
+alimente la contrainte d'autonomie OR-Tools) et `fuel_type String(20)`
+(essence|diesel|gpl|electric).
 
 ---
 

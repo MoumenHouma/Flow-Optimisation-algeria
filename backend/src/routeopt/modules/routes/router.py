@@ -12,6 +12,7 @@ from routeopt.modules.routes.schemas import (
     JobOut,
     OptimizeRequest,
     OptimizeResponse,
+    ReassignRequest,
     ReoptimizeRequest,
     RouteOut,
     RouteStopOut,
@@ -56,6 +57,26 @@ async def reoptimize(
 ) -> OptimizeResponse:
     """Re-plan a live route's remaining stops (F9). Returns a job id; poll /jobs/{id}."""
     job_id, count = await RoutesService(session).submit_reoptimize_job(
+        user.company_id, user.user_id, route_id, payload
+    )
+    return OptimizeResponse(
+        job_id=job_id,
+        status=JobStatus.PENDING,
+        estimated_duration_ms=RoutesService.estimate_duration_ms(count),
+    )
+
+
+@router.post("/{route_id}/reassign", response_model=OptimizeResponse, status_code=202)
+async def reassign(
+    route_id: str,
+    payload: ReassignRequest,
+    session: SessionDep,
+    user: Annotated[CurrentUser, Depends(require_roles("admin", "manager"))],
+    _: Annotated[None, Depends(rate_limiter)],
+) -> OptimizeResponse:
+    """Blocked vehicle (fuel/breakdown): redistribute its remaining stops across the
+    rest of the fleet (F20). Returns a job id; poll /jobs/{id}."""
+    job_id, count = await RoutesService(session).submit_reassign_job(
         user.company_id, user.user_id, route_id, payload
     )
     return OptimizeResponse(

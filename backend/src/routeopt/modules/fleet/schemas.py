@@ -11,6 +11,9 @@ class VehicleIn(BaseModel):
     license_plate: str | None = None
     capacity_weight: float = Field(1000, ge=0)
     capacity_volume: float = Field(10, ge=0)
+    # F20 fuel-shortage: optional range cap + fuel type.
+    fuel_range_km: float | None = Field(None, gt=0)
+    fuel_type: str = "essence"  # essence | diesel | gpl | electric
     # F12: provide either a depot_id (multi-dépôt) or an inline depot + address.
     depot_id: str | None = None
     depot: GeoPoint | None = None
@@ -74,6 +77,8 @@ class VehicleOut(BaseModel):
     license_plate: str | None
     capacity_weight: float
     capacity_volume: float
+    fuel_range_km: float | None
+    fuel_type: str
     depot_id: str | None
     depot: GeoPoint
     depot_address: str
@@ -88,6 +93,8 @@ class VehicleOut(BaseModel):
             license_plate=v.license_plate,
             capacity_weight=float(v.capacity_weight),
             capacity_volume=float(v.capacity_volume),
+            fuel_range_km=float(v.fuel_range_km) if v.fuel_range_km is not None else None,
+            fuel_type=v.fuel_type,
             depot_id=str(v.depot_id) if v.depot_id else None,
             depot=GeoPoint(lat=float(v.depot_lat), lon=float(v.depot_lon)),
             depot_address=v.depot_address,

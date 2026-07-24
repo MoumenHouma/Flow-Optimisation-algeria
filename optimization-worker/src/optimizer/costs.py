@@ -76,4 +76,4 @@ def arc_cost(
         + weights.fuel * (fuel_ml(distance_m, duration_s, factors) / 1000.0)
         + weights.co2 * (co2_g(distance_m, duration_s, factors) / 1000.0)
     )
-    return int(round(normalized * _COST_SCALE))
+    return round(normalized * _COST_SCALE)

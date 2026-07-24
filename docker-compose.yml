@@ -54,10 +54,13 @@ services:
         limits:
           memory: 16G
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs 'http://localhost:5000/table/v1/driving/3.06,36.75;3.07,36.76' || exit 1"]
+      # osrm/osrm-backend ships no curl/wget/nc — only bash. Probe via /dev/tcp
+      # and confirm a real routing response so "healthy" means data is loaded.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/5000 && printf 'GET /table/v1/driving/3.06,36.75;3.07,36.76 HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '\"code\":\"Ok\"' <&3"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
     profiles: ["osrm"]   # opt-in: `docker compose --profile osrm up osrm`
 
   backend:
@@ -79,7 +82,11 @@ services:
         condition: service_healthy
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # Baked into the static bundle at build time (see frontend/Dockerfile).
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     env_file: .env
     ports:
       - "5173:5173"

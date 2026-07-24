@@ -32,13 +32,22 @@ class Vehicle(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     depot_lon: Mapped[float] = mapped_column(Numeric(11, 8), nullable=False)
     depot_address: Mapped[str] = mapped_column(Text, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # F20 fuel-shortage: max distance the vehicle can cover on a tank (NULL =
+    # unlimited/no constraint). `fuel_type` scopes which stations refuel it,
+    # incl. Algeria's GPL/sirghaz. PRD §4.1 "pénurie carburant".
+    fuel_range_km: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    fuel_type: Mapped[str] = mapped_column(String(20), nullable=False, default="essence")
 
     __table_args__ = (
         CheckConstraint(
             "vehicle_type IN ('car','van','truck','motorcycle')", name="check_vehicle_type"
         ),
+        CheckConstraint(
+            "fuel_type IN ('essence','diesel','gpl','electric')", name="check_fuel_type"
+        ),
         CheckConstraint("capacity_weight >= 0", name="check_capacity_weight"),
         CheckConstraint("capacity_volume >= 0", name="check_capacity_volume"),
+        CheckConstraint("fuel_range_km IS NULL OR fuel_range_km > 0", name="check_fuel_range"),
         CheckConstraint("depot_lat BETWEEN -90 AND 90", name="check_depot_lat"),
         CheckConstraint("depot_lon BETWEEN -180 AND 180", name="check_depot_lon"),
     )

@@ -56,6 +56,18 @@ export function useReoptimize() {
   });
 }
 
+// Blocked vehicle (fuel/breakdown): redistribute the route's remaining stops
+// across the rest of the fleet (F20). Returns a job id to poll.
+export function useReassign() {
+  return useMutation({
+    mutationFn: ({ routeId, reason }: { routeId: string; reason?: string }) =>
+      apiFetch<OptimizeResponse>(`/api/v1/routes/${routeId}/reassign`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason ?? null }),
+      }),
+  });
+}
+
 // Poll a job until it completes/fails (docs/RULES.md §3.2 polling pattern).
 export function useOptimizationJob(jobId: string | null) {
   return useQuery({

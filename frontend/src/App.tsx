@@ -3,8 +3,13 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
+import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
+import { ResetPasswordPage } from "@/features/auth/ResetPasswordPage";
+import { BillingPage } from "@/features/billing/BillingPage";
+import { CodReconciliationPage } from "@/features/cod/CodReconciliationPage";
+import { FuelPage } from "@/features/fuel/FuelPage";
 import { AuditLogPage } from "@/features/settings/AuditLogPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { DriverPage } from "@/features/driver/DriverPage";
@@ -13,6 +18,8 @@ import { ImportPage } from "@/features/import/ImportPage";
 import { FleetPage } from "@/features/fleet/FleetPage";
 import { DevelopersPage } from "@/features/settings/DevelopersPage";
 import { TerritoriesPage } from "@/features/territories/TerritoriesPage";
+import { LiveTrackingPage } from "@/features/tracking/LiveTrackingPage";
+import { TrackPage } from "@/features/track/TrackPage";
 
 // Public auth routes + a protected shell (Layout) wrapping the app (DESIGN §3).
 export default function App() {
@@ -20,6 +27,10 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      {/* F18: public customer tracking link — no auth, its own bare shell. */}
+      <Route path="/track/:token" element={<TrackPage />} />
 
       <Route
         element={
@@ -34,6 +45,10 @@ export default function App() {
         <Route path="/fleet" element={<FleetPage />} />
         <Route path="/territories" element={<TerritoriesPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/tracking" element={<LiveTrackingPage />} />
+        <Route path="/cod" element={<CodReconciliationPage />} />
+        <Route path="/billing" element={<BillingPage />} />
+        <Route path="/fuel" element={<FuelPage />} />
         <Route path="/developers" element={<DevelopersPage />} />
         <Route path="/audit-log" element={<AuditLogPage />} />
       </Route>

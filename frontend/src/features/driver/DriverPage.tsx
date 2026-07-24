@@ -1,9 +1,12 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, Navigation, Phone, XCircle, Loader2, LogOut } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useBranding } from "@/api/company";
-import { type DriverStatus, useMyRoute, useUpdateStatus } from "@/api/driver";
+import { type DriverStatus, useMyRoute, useReportLocation, useUpdateStatus } from "@/api/driver";
+import { useOfflineQueue } from "@/hooks/useOfflineQueue";
+import { startOfflineSync } from "@/lib/offline-queue";
 import { useAuthStore } from "@/stores/auth-store";
 import type { DriverStop } from "@/types";
 
@@ -16,7 +19,45 @@ export function DriverPage() {
   const { brandName } = useBranding();
   const { data: route, isLoading } = useMyRoute();
   const update = useUpdateStatus();
+  const reportLocation = useReportLocation();
+  const { pending } = useOfflineQueue();
   const [proofStop, setProofStop] = useState<DriverStop | null>(null);
+
+  const queryClient = useQueryClient();
+
+  // Phase D: replay any queued mutations on reconnect / app load.
+  useEffect(() => {
+    startOfflineSync();
+  }, []);
+
+  // When the queue drains, reconcile the optimistic cache with server truth: a
+  // synced stop confirms delivered; a dead-lettered one reverts so it resurfaces
+  // (never silently left "delivered" when the server didn't record it).
+  const prevPending = useRef(pending);
+  useEffect(() => {
+    if (prevPending.current > 0 && pending === 0) {
+      queryClient.invalidateQueries({ queryKey: ["driver", "route"] });
+    }
+    prevPending.current = pending;
+  }, [pending, queryClient]);
+
+  // F18: stream the driver's GPS while a route is active so the dispatcher map
+  // and customer tracking links stay live. Best-effort — geolocation may be off.
+  const hasRoute = !!route;
+  useEffect(() => {
+    if (!hasRoute || !navigator.geolocation) return;
+    const post = () =>
+      navigator.geolocation.getCurrentPosition(
+        (p) => reportLocation.mutate({ lat: p.coords.latitude, lon: p.coords.longitude }),
+        () => {},
+        { timeout: 5000, maximumAge: 10000 },
+      );
+    post();
+    const id = window.setInterval(post, 20000);
+    return () => window.clearInterval(id);
+    // reportLocation is stable; re-run only when a route appears/disappears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRoute]);
 
   const logout = () => {
     clear();
@@ -31,8 +72,13 @@ export function DriverPage() {
   };
 
   // Marking delivered requires proof; failure is recorded immediately.
-  const markDelivered = () => {
-    update.mutate({ deliveryId: proofStop!.delivery_id, status: "delivered" });
+  // For a COD stop the ProofSheet reports the cash collected (F17).
+  const markDelivered = (cod?: { cod_collected: number }) => {
+    update.mutate({
+      deliveryId: proofStop!.delivery_id,
+      status: "delivered",
+      ...(cod ? { cod_collected: cod.cod_collected, cod_method: "cash" as const } : {}),
+    });
     setProofStop(null);
   };
 
@@ -40,6 +86,15 @@ export function DriverPage() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-neutral-50">
       <header className="sticky top-0 flex items-center justify-between bg-white px-4 py-3 shadow-sm">
         <span className="font-bold text-primary">{brandName} 📦</span>
+        {pending > 0 && (
+          <span
+            role="status"
+            aria-label={`${pending} mise(s) à jour en attente de synchronisation`}
+            className="ml-auto mr-3 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning"
+          >
+            ⏳ {pending} en attente
+          </span>
+        )}
         <button onClick={logout} aria-label="Déconnexion" className="rounded p-1 text-neutral-500">
           <LogOut className="h-5 w-5" aria-hidden="true" />
         </button>
