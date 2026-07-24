@@ -53,6 +53,18 @@ class Settings(BaseSettings):
 
     sentry_dsn: str | None = None
 
+    # Transactional email (password reset). noop | log | smtp — `log` writes the
+    # message to the backend log, so an SMTP-less deployment can still recover an
+    # account; set `smtp` + the relay settings to actually deliver mail.
+    email_provider: str = "log"
+    email_from: str = "no-reply@routeopt.dz"
+    smtp_host: str = "localhost"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    password_reset_expire_minutes: int = 60
+
     # Live tracking + notifications (F18)
     notify_queue: str = "queue:notifications"
     live_position_ttl_s: int = 120  # a stale driver position expires after this

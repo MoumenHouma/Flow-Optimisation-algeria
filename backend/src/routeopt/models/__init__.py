@@ -16,6 +16,7 @@ from routeopt.models.depot import Depot
 from routeopt.models.fuel_station import FuelStation
 from routeopt.models.invoice import Invoice
 from routeopt.models.optimization_job import OptimizationJob
+from routeopt.models.password_reset import PasswordResetToken
 from routeopt.models.proof_of_delivery import ProofOfDelivery
 from routeopt.models.refresh_token import RefreshToken
 from routeopt.models.route import Route, RouteStop
@@ -38,6 +39,7 @@ __all__ = [
     "FuelStation",
     "Invoice",
     "OptimizationJob",
+    "PasswordResetToken",
     "ProofOfDelivery",
     "RefreshToken",
     "Route",

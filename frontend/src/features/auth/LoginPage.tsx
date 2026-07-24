@@ -59,6 +59,11 @@ export function LoginPage() {
         </button>
       </form>
       <p className="mt-4 text-sm text-neutral-500">
+        <Link to="/forgot-password" className="text-primary hover:underline">
+          Mot de passe oublié ?
+        </Link>
+      </p>
+      <p className="mt-2 text-sm text-neutral-500">
         Pas de compte ?{" "}
         <Link to="/register" className="text-primary hover:underline">
           Créer une flotte

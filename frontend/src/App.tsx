@@ -3,8 +3,10 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
+import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
+import { ResetPasswordPage } from "@/features/auth/ResetPasswordPage";
 import { BillingPage } from "@/features/billing/BillingPage";
 import { CodReconciliationPage } from "@/features/cod/CodReconciliationPage";
 import { FuelPage } from "@/features/fuel/FuelPage";
@@ -25,6 +27,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       {/* F18: public customer tracking link — no auth, its own bare shell. */}
       <Route path="/track/:token" element={<TrackPage />} />
 

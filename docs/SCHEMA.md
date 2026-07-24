@@ -200,6 +200,33 @@ CREATE INDEX idx_audit_log_resource ON audit_log(resource_type, resource_id);
 
 > Rétention : purge automatique après 1 an sauf obligation légale (ARCHITECTURE §5.2).
 
+### 3.7 `password_reset_tokens`
+
+Récupération de compte : lien à usage unique, valable 60 min par défaut
+(`PASSWORD_RESET_EXPIRE_MINUTES`). Même discipline de stockage que §3.3 — seul le
+hash est persisté, le token en clair ne circule que dans l'email.
+
+```sql
+CREATE TABLE password_reset_tokens (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash   VARCHAR(255) NOT NULL, -- SHA-256, jamais le token en clair
+    expires_at   TIMESTAMPTZ NOT NULL,
+    used_at      TIMESTAMPTZ NULL,      -- consommé : le lien ne fonctionne qu'une fois
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_password_reset_hash UNIQUE (token_hash)
+);
+
+CREATE INDEX ix_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+```
+
+> Consommer un lien invalide **tous** les autres liens en attente de cet utilisateur et
+> révoque **toutes** ses sessions (`refresh_tokens`), pas seulement la famille courante :
+> un changement de mot de passe met fin à toutes les sessions.
+> `POST /auth/forgot-password` répond toujours `202`, même pour une adresse inconnue
+> (pas d'énumération d'utilisateurs), et est limité par IP.
+
 ---
 
 ## 4. Flotte
