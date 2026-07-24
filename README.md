@@ -56,6 +56,16 @@ python -m optimizer.worker
 cd frontend && npm install && npm run dev
 ```
 
+### Données de démonstration
+
+Pour peupler une instance vide (démo, test) avec une société cliquable
+(gérant `demo@routeopt.dz` / `demo-pass-123`, flotte + livraisons Alger, une
+tournée optimisée) :
+
+```bash
+cd backend && python scripts/seed_demo.py     # idempotent ; ne pas lancer sur des données réelles
+```
+
 Qualité (cf. [`docs/RULES.md`](./docs/RULES.md)) : `ruff`, `mypy`, `black`, `pytest` (Python) · `eslint`, `prettier`, `vitest` (TS). Commits en [Conventional Commits](./docs/RULES.md#12-commit-convention-conventional-commits).
 
 ### Tests

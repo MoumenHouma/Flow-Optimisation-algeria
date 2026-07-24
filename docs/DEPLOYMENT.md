@@ -62,6 +62,20 @@ NOMINATIM_RATE_LIMIT_S=0
 
 # Observabilité (optionnel)
 SENTRY_DSN=https://...ingest.sentry.io/...
+
+# Email transactionnel (réinitialisation de mot de passe)
+# noop (silencieux) | log (écrit le lien dans les logs) | smtp (envoi réel).
+# Défaut `log` : sans relais SMTP, le lien de réinitialisation reste récupérable
+# dans les logs du backend. En production, préférez `smtp`.
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=no-reply@routeopt.dz
+SMTP_HOST=smtp.votre-relais
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASSWORD=...
+SMTP_USE_TLS=true
+# PUBLIC_BASE_URL sert aussi à construire les liens de réinitialisation.
+PUBLIC_BASE_URL=https://app.routeopt.dz
 ```
 
 Stockez les secrets dans un gestionnaire (Docker/Kubernetes secrets, AWS Secrets
@@ -94,6 +108,23 @@ cd backend && alembic upgrade head
 
 Vérifiez au préalable le SQL généré d'une nouvelle migration :
 `alembic upgrade <rev_précédente>:<rev> --sql`.
+
+### 3.1 Données de démonstration (optionnel)
+
+Pour qu'une instance fraîche soit **cliquable** plutôt qu'un écran vide (démos
+prospects, environnement de test), un script sème une société de démo :
+
+```bash
+cd backend && python scripts/seed_demo.py
+```
+
+Il est **idempotent** (rejouable sans doublon) et crée : société « Démo RouteOpt »
+(formule `pro`), un gérant `demo@routeopt.dz` / `demo-pass-123`, un livreur
+`driver@routeopt.dz` / `driver-pass-123`, un dépôt Alger, 3 véhicules et ~15
+livraisons Alger (dont quelques-unes en paiement à la livraison). Il tente ensuite
+une optimisation : **lancez-le une fois la pile en bonne santé** (worker + OSRM up),
+sinon il sème les données et vous invite à optimiser depuis l'interface.
+À ne **pas** exécuter sur une base contenant de vrais clients.
 
 ## 4. Build & lancement
 
