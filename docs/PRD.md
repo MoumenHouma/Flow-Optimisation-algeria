@@ -92,6 +92,15 @@ Les livreurs et flottes algériennes (e-commerce, restauration, logistique) plan
 | F15 | Territory management | Division automatique en zones géographiques + assignation livreurs |
 | F16 | White-label | Personnalisation marque pour grands clients |
 
+### 3.4 Phase 4 (monétisation & terrain)
+
+| ID | Fonctionnalité | Description |
+|----|---------------|-------------|
+| F17 | Rapprochement paiement à la livraison (COD) | Le livreur saisit l'espèce encaissée par arrêt ; le gérant rapproche encaissé vs attendu par livreur/jour et signale les écarts (paiement à la livraison, §4.1) |
+| F18 | Suivi temps réel + notifications | Position GPS livreur en direct sur la carte + SMS/WhatsApp client « en approche » + lien de suivi (réduit les appels clients, §2.1) |
+| F19 | Facturation SaaS + quotas | Application des plafonds par formule (véhicules, livraisons/jour) et facturation CCP/BaridiMob/Stripe ; métriques d'usage |
+| F20 | Gestion pénurie carburant | Autonomie carburant par véhicule appliquée comme contrainte d'optimisation (OR-Tools) + disponibilité des stations en direct (§4.1) |
+
 ---
 
 ## 4. Contraintes Métier Spécifiques Algérie

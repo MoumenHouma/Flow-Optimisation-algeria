@@ -156,6 +156,26 @@ CREATE TABLE api_keys (
 CREATE INDEX idx_api_keys_company ON api_keys(company_id) WHERE revoked_at IS NULL;
 ```
 
+### 3.6 `webhooks`
+
+Abonnements webhook sortants (F10). RouteOpt POST un payload JSON signé
+(HMAC-SHA256 avec `secret`, en-tête `X-RouteOpt-Signature`) à chaque évènement
+listé dans `events` (ex. `delivery.status_changed`, `optimization.completed`).
+
+```sql
+CREATE TABLE webhooks (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id   UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    url          TEXT NOT NULL,
+    secret       VARCHAR(64) NOT NULL, -- signe le payload, jamais renvoyé en clair après création
+    events       VARCHAR(255) NOT NULL, -- liste d'évènements séparés par des virgules
+    active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_webhooks_company ON webhooks(company_id);
+```
+
 ### 3.5 `audit_log`
 
 Journal d'audit immuable (RULES §8.1 "Insufficient Logging → audit trail" ; conformité
@@ -416,6 +436,7 @@ CREATE TABLE optimization_jobs (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id     UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     requested_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    reoptimize_route_id UUID REFERENCES routes(id) ON DELETE SET NULL, -- F9: route re-planned in place
     trigger        VARCHAR(20) NOT NULL DEFAULT 'manual', -- manual | reoptimize | scheduled
     status         VARCHAR(50) NOT NULL DEFAULT 'pending',
     input_hash     VARCHAR(64), -- hash des paramètres d'entrée, pour cache/déduplication
@@ -480,14 +501,54 @@ est trop faible pour justifier un index GiST.
 
 ### 8.3 Ce qui reste hors schéma MVP
 
-- **Facturation/paiement** (CCP, BaridiMob, COD — PRD §4.1) : nécessite un fournisseur
-  de paiement choisi avant de figer un schéma ; à modéliser quand l'intégration
-  concrète sera spécifiée, pas en spéculatif.
 - **Prédiction ML du temps de service** (F13) et **optimisation multi-objectif** (F14) :
   consomment `delivery_status_history` et `optimization_jobs.result` en lecture, sans
   nouvelle table nécessaire au moment de l'entraînement offline.
 - **White-label** (F16) : configuration d'apparence, pas de donnée métier — vivra dans
   `companies` sous forme d'un champ `branding JSONB` le jour où il sera implémenté.
+
+---
+
+## 9. Phase 4 — Monétisation & Terrain (F17–F20)
+
+### 9.1 `cod_payments` (F17 — paiement à la livraison)
+
+Un enregistrement de rapprochement par livraison encaissée. Migration `0013`.
+
+| Colonne | Type | Notes |
+|---------|------|-------|
+| `id` | UUID PK | |
+| `company_id` | UUID FK→companies | CASCADE, isolation tenant |
+| `delivery_id` | UUID FK→deliveries | CASCADE ; **UNIQUE** (un rapprochement par livraison) |
+| `route_id` | UUID FK→routes | SET NULL |
+| `driver_user_id` | UUID FK→users | SET NULL |
+| `amount_expected` | Numeric(12,2) | copié de `deliveries.cod_amount` à l'encaissement |
+| `amount_collected` | Numeric(12,2) | espèce réellement collectée |
+| `currency` | String(3) | défaut `DZD` |
+| `method` | String(20) | `cash` \| `baridimob` \| `ccp` \| `none` |
+| `status` | String(20) | `pending` \| `collected` \| `reconciled` \| `discrepancy` |
+| `collected_at` | timestamptz | |
+
+Colonnes ajoutées à `deliveries` (migration `0013`) : `cod_amount Numeric(12,2)` (total
+dû à l'arrêt, saisi à l'import ; NULL = prépayé), `cod_currency String(3)` défaut `DZD`.
+
+### 9.2 `subscriptions` + `invoices` (F19 — facturation SaaS)
+
+Migration `0014`. `subscriptions` : une ligne active par company reflétant la formule
+facturée (`plan`, `status` active|canceled, `amount_da`, `started_at`, `canceled_at`) ;
+le changement de formule clôt l'ancienne et en ouvre une nouvelle (historique). `invoices` :
+une charge par période `YYYY-MM` (`period` UNIQUE par company, `plan`, `amount_da`,
+`status` pending|paid|void, `method` cash|ccp|baridimob|stripe, `reference`, `issued_at`,
+`paid_at`). Montants en DZD (PRD §5.1). Les plafonds de formule vivent sur `companies`
+(`max_vehicles`, `max_deliveries_per_day`) et sont l'autorité pour l'application des quotas.
+
+### 9.3 `fuel_stations` + colonnes carburant véhicule (F20)
+
+Migration `0015`. `fuel_stations` (company-scoped, soft-delete) : `name`, `lat`/`lon`,
+`fuel_types` (CSV : essence,diesel,gpl,electric), `status` available|shortage|closed,
+`notes`. Colonnes ajoutées à `vehicles` : `fuel_range_km Numeric(8,2)` (NULL = illimité ;
+alimente la contrainte d'autonomie OR-Tools) et `fuel_type String(20)`
+(essence|diesel|gpl|electric).
 
 ---
 

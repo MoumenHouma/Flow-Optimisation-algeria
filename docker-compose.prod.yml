@@ -1,0 +1,92 @@
+# RouteOpt — production override (docs/DEPLOYMENT.md).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Assumes PostgreSQL, Redis and object storage are provided as managed services
+# (their base-file definitions are neutralised below via `profiles`, so they are
+# not started here). Point DB_URL / REDIS_URL / S3_* at those endpoints in
+# .env (see .env.prod.example). Secrets — JWT keys, SECRET_KEY, S3 creds — come
+# from your secrets store, not the image.
+services:
+  # Managed externally in production: exclude from the default `up` by parking
+  # them under a profile that is never enabled here.
+  postgres:
+    profiles: ["local-data"]
+  redis:
+    profiles: ["local-data"]
+  minio:
+    profiles: ["local-data"]
+
+  backend:
+    restart: unless-stopped
+    # Postgres/Redis are managed externally here — drop the local health deps.
+    depends_on: !reset []
+    # Do not publish the app port directly; nginx terminates TLS and proxies.
+    # `!reset` is required — a bare `[]` does not override the base list, so the
+    # host port would leak and collide across replicas.
+    ports: !reset []
+    expose:
+      - "8000"
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      LOG_LEVEL: INFO
+    secrets:
+      - jwt_private_key
+      - jwt_public_key
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  optimization-worker:
+    restart: unless-stopped
+    depends_on: !reset []
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      LOG_LEVEL: INFO
+    secrets:
+      - jwt_private_key
+      - jwt_public_key
+    deploy:
+      # Scale horizontally with load — each replica BLPOPs the shared queue.
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  frontend:
+    restart: unless-stopped
+    ports: !reset []
+    expose:
+      - "5173"
+
+  # Reverse proxy / TLS termination in front of the API and the static frontend.
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+    healthcheck:
+      # 127.0.0.1, not localhost: BusyBox resolves localhost to ::1 first and
+      # nginx listens only on IPv4 0.0.0.0, so localhost gives connection-refused.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# JWT signing keys are mounted as Docker secrets (files), matching
+# JWT_PRIVATE_KEY_PATH / JWT_PUBLIC_KEY_PATH in .env → /run/secrets/*.
+secrets:
+  jwt_private_key:
+    file: ./infra/secrets/jwt-private.pem
+  jwt_public_key:
+    file: ./infra/secrets/jwt-public.pem
