@@ -1,7 +1,18 @@
 # RouteOpt — Session handoff
 
 Read this first in any new session (alongside `CLAUDE.md` at the repo root) to
-pick up the project with full context. Snapshot as of **2026-07-23**.
+pick up the project with full context. Snapshot as of **2026-07-24**.
+
+> **2026-07-24 update — go-to-market gap-closing (local, committed, UNPUSHED).**
+> A "what's missing before selling" audit closed four sell-blocking gaps
+> (commits efeb90d, 4044523, 0a05df8, 0a7b4cb): **A3** password reset (migration
+> **0017**, so migrations now run 0001→0017), **A2** demo seed
+> (`backend/scripts/seed_demo.py`) + dashboard onboarding checklist, **A4** static
+> marketing site (`marketing/`, legal pages are DRAFTS) served by the gateway on
+> `routeopt.dz`, **A1** deploy/backup/demo-tunnel scripts (`infra/deploy.sh`,
+> `infra/backup.sh`, `infra/demo-tunnel.sh`; cloudflared installed on the PC) +
+> `docs/DEPLOYMENT.md` §8-10. Tests: backend **94** pytest, frontend **73** vitest.
+> Pitch assets live at `Desktop\routeopt-pitch\` (see §7). Details in `CLAUDE.md`.
 
 ---
 
@@ -165,19 +176,24 @@ cd frontend && npm run lint && npm run typecheck && npm run test -- --run && npm
 
 ## 7. Sales assets produced (not part of the codebase)
 
-A pitch deck and prospection emails were produced for outreach to Algerian
-last-mile carriers. They were delivered to the user as files and are **not
-committed to this repo** (they aren't code artifacts):
+Pitch/outreach material for Algerian last-mile carriers, e-commerce fleets,
+restaurant chains and pharma distribution. Delivered as files, **not committed**
+(not code artifacts). Current set at `Desktop\routeopt-pitch\` (2026-07-24):
 
-- `RouteOpt-Presentation.pptx` — 12-slide French pitch deck for Algerian carriers.
-- `RouteOpt-Emails-Prospection.md` — 6 tailored prospection emails
-  (Yalidine, Maystro, ZR Express, NOEST, GuepEX, Colivraison Express).
+- `RouteOpt-GAPS.md` — full "what's missing before selling" audit (A-list blockers,
+  B-list later, honesty rules §F).
+- `RouteOpt-Emails-Prospection.md` — 4 segment emails + 2 follow-ups + LinkedIn DM.
+  Every email asks for a **20-min demo + free pilot**, not a signup (nothing is
+  deployed on a permanent URL).
+- `RouteOpt-Une-Page.md` — FR one-pager to attach (pitch, real capabilities, DA
+  pricing, pilot offer).
 
-Notes if regenerating: the deck's ROI figures are labelled *illustratif*
-(index, base 100), not measured; contact details are placeholders (`[...]`);
-built with `pptxgenjs` + `react-icons`/`sharp` for icons; market stats sourced
-from public research (easysellapp.com, dzbuild.com, ministère de la Poste —
-cahier des charges 2025–2026).
+Honesty constraints baked into all copy (verified in code): **no Arabic-UI claim**
+(the locale toggle only flips layout direction — no translation catalog), **no
+automatic SMS/WhatsApp claim** (notification providers are noop/log; only the
+tracking *link* is real), **no measured ROI / client counts** (any projection
+labelled *illustratif*). An earlier 12-slide `.pptx` existed but is not on this PC;
+don't reconstruct company-specific claims — the emails use publicly-known names only.
 
 ---
 

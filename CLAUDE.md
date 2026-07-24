@@ -8,7 +8,7 @@ SaaS delivery-route optimizer for the Algerian market. Monorepo:
 `frontend/` (React + Vite + TS). Data: PostgreSQL+PostGIS, Redis, S3/MinIO.
 Normative docs live in `docs/` (PRD, ARCHITECTURE, SCHEMA, RULES, DESIGN).
 
-## Status (as of 2026-07-23)
+## Status (as of 2026-07-24)
 
 Phases 1–3 delivered — **F1–F16** implemented, tested, green — plus a four-batch
 hardening effort (security, optimization correctness, compliance/observability,
@@ -35,24 +35,53 @@ Development happens on `claude/development-rules-guidelines-nzib0s`.
 Verified green (2026-07-23, local PG+Redis): backend **88** pytest (CI gate 70)
 · worker **18** pytest (CI gate 75%) · frontend **58** vitest.
 
+## Go-to-market gap-closing (2026-07-24, local, committed, UNPUSHED)
+
+A repo audit for "what's missing before selling" found the product code was fine;
+the go-to-market envelope wasn't. Four sell-blocking gaps closed (commits efeb90d,
+4044523, 0a05df8, 0a7b4cb — all local, need fetch+rebase+push on the shared branch):
+
+- **A3 password reset** (efeb90d): `password_reset_tokens` (migration **0017**,
+  SCHEMA §3.7) + `/auth/forgot-password` (always 202, no enumeration, IP-throttled)
+  + `/auth/reset-password` (single-use, revokes ALL sessions). `core/email.py`
+  provider (noop|log|smtp, default log → link in backend log). Frontend
+  `/forgot-password` + `/reset-password`. Backend **94** pytest, frontend **73** vitest.
+- **A2 demo seed + onboarding** (4044523): `backend/scripts/seed_demo.py`
+  (idempotent; demo@routeopt.dz / demo-pass-123, 3 vehicles, 15 Alger deliveries;
+  submits one optimization → completed route, verified 15 stops / 95.1 km /
+  3974-pt OSRM geometry; degrades gracefully if worker down). `OnboardingChecklist`
+  on the dashboard (drives off dashboard summary, no new endpoint).
+- **A4 vitrine + legal** (0a05df8): static `marketing/` (index + cgu/confidentialite/
+  mentions-legales — legal pages are DRAFTS w/ visible banner, need a lawyer).
+  Served by the gateway on `routeopt.dz` (app stays `app.routeopt.dz`).
+- **A1 reachability** (0a7b4cb): `infra/deploy.sh` (VPS), `infra/backup.sh` (cron
+  pg_dump+S3), `infra/demo-tunnel.sh` (Cloudflare quick tunnel — cloudflared now
+  INSTALLED on PC via winget; tunnel verified end-to-end). DEPLOYMENT §8-10.
+
+Pitch assets (NOT in repo, on Desktop\routeopt-pitch\): `RouteOpt-GAPS.md`,
+`RouteOpt-Emails-Prospection.md` (4 segments + follow-ups), `RouteOpt-Une-Page.md`.
+Honesty constraints enforced: no Arabic-UI claim (catalog doesn't exist), no
+automatic SMS claim (providers are noop/log — only the tracking link is real),
+no measured ROI.
+
 ## Outstanding — NOT done
 
-These are incomplete. Do not assume they are finished. (The PRD F-list is fully
-shipped; the items below are beyond-PRD host actions + one deliberate cleanup.)
+These are incomplete. Do not assume they are finished.
 
-1. **Stand up real OSRM + Nominatim in a staging environment** — NOT done.
-   Blocked in the build sandbox (network policy blocks Docker Hub / Geofabrik).
-   Config is ready (`infra/osrm/prepare.sh`, compose `osrm` profile, prod env
-   points at a self-hosted Nominatim); the actual data build + run is a host
-   action that must be performed where network access exists.
+1. **Production deployment to a live host** — still NOT done. Scripts + runbook
+   now exist (`infra/deploy.sh`, `docs/DEPLOYMENT.md` §8-10) but need the user's
+   VPS + domain + secrets; nothing is deployed. `infra/demo-tunnel.sh` is the
+   stopgap for a live demo from the PC.
 
-2. **Production deployment to a live host** — NOT done.
-   No target host or secrets store is reachable from the sandbox. The full
-   runbook exists in `docs/DEPLOYMENT.md` and the artifacts exist
-   (`docker-compose.prod.yml`, `infra/nginx/`, `.env.prod.example`), but nothing
-   has actually been deployed.
+2. **Self-hosted Nominatim** — NOT done (real OSRM Algeria IS live locally).
+   Geocoding still uses the public ~1 req/s instance.
 
-3. **F5 cleanup — remove the vestigial top-level `depot`** on
+3. **Deferred by scope (in RouteOpt-GAPS.md §B):** Arabic translation catalog,
+   real SMS/WhatsApp gateway, in-app turn-by-turn, merging stacked PRs #2→#5,
+   F20 single-vehicle range fallback ignores the constraint, UTC-vs-Alger quota
+   boundary, "0 DA/mois" Enterprise label.
+
+4. **F5 cleanup — remove the vestigial top-level `depot`** on
    `optimization-worker` `VRPProblem` — NOT done (deliberate skip).
    `problem.depot` still serves as a real fallback in `worker.py`; removing it is
    broad churn (dataclass + solver + worker + every test payload) with no
