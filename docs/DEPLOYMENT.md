@@ -176,3 +176,63 @@ Le service `gateway` s'appuie sur [`infra/nginx/`](../infra/nginx) :
 - [ ] Le worker consomme `queue:optimize` (logs `job … -> completed`).
 - [ ] OSRM joignable (sinon résultats `is_suboptimal`, à surveiller).
 - [ ] Sauvegardes PostgreSQL + rétention `audit_log` (purge > 1 an, loi 18-07).
+
+## 8. Déploiement sur un VPS (un seul hôte)
+
+Cible réaliste : un VPS Ubuntu **8–16 Go de RAM** — c'est l'OSRM Algérie qui fixe
+le plancher mémoire (§ contraintes techniques du PRD). Prérequis one-off sur l'hôte :
+Docker + plugin Compose, un `.env` renseigné (à partir de `.env.prod.example`),
+les clés JWT dans `infra/secrets/`, les certificats TLS dans `infra/nginx/certs/`,
+et les données OSRM construites une fois (`infra/osrm/prepare.sh`).
+
+DNS : faites pointer `app.routeopt.dz` (application) et `routeopt.dz` /
+`www.routeopt.dz` (vitrine) vers l'IP du VPS. Certificats via **Let's Encrypt** —
+l'emplacement `/.well-known/acme-challenge/` est déjà prévu dans
+`conf.d/routeopt.conf` (mode webroot `certbot`), puis déposez `fullchain.pem` /
+`privkey.pem` dans `infra/nginx/certs/`.
+
+Le déploiement lui-même est scripté — [`infra/deploy.sh`](../infra/deploy.sh)
+(fetch → build → `alembic upgrade head` dans un conteneur jetable → `up -d` →
+attente de `/health/ready`) :
+
+```bash
+./infra/deploy.sh                    # déploie la branche courante
+```
+
+Le script est idempotent (rejouable pour une mise à jour). Optionnel ensuite :
+`python backend/scripts/seed_demo.py` pour une société de démo cliquable (§3.1) —
+jamais sur une base contenant de vrais clients.
+
+## 9. Sauvegardes & restauration
+
+[`infra/backup.sh`](../infra/backup.sh) fait un `pg_dump` compressé et, si les
+variables `S3_*` sont présentes, le pousse vers le bucket. À planifier par cron :
+
+```cron
+0 2 * * *  /opt/routeopt/infra/backup.sh >> /var/log/routeopt-backup.log 2>&1
+```
+
+**Une sauvegarde jamais restaurée n'est pas une sauvegarde.** Testez une
+restauration périodiquement sur une base jetable :
+
+```bash
+gunzip -c routeopt-<stamp>.sql.gz | psql "postgresql://user:pass@host:5432/routeopt_restore_test"
+```
+
+## 10. Démo temporaire sans VPS (tunnel)
+
+Pour montrer une instance en direct **avant** d'avoir un VPS et un domaine,
+[`infra/demo-tunnel.sh`](../infra/demo-tunnel.sh) ouvre un tunnel Cloudflare
+temporaire (sans compte, sans DNS) vers la pile locale :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+./infra/demo-tunnel.sh 80            # tunnel vers la passerelle
+```
+
+L'URL `*.trycloudflare.com` produite est **éphémère** : elle change à chaque
+lancement et meurt à l'arrêt. Elle sert à une démo en direct que vous pilotez —
+**à ne pas mettre dans un email froid**. Pour que la SPA joigne son API à travers
+le tunnel, buildez le frontend avec `VITE_API_BASE_URL` **vide** (appel same-origin
+`/api`) et alignez `ALLOWED_ORIGINS` / `PUBLIC_BASE_URL` sur l'hôte du tunnel.
+Pour une adresse stable, utilisez un tunnel nommé avec votre propre domaine.
