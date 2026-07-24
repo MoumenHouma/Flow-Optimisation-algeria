@@ -56,6 +56,27 @@ export function RegisterPage() {
         >
           {register.isPending ? "Création…" : "Créer mon compte"}
         </button>
+        <p className="text-xs text-neutral-500">
+          En créant un compte, vous acceptez les{" "}
+          <a
+            href="https://routeopt.dz/cgu.html"
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:underline"
+          >
+            CGU
+          </a>{" "}
+          et la{" "}
+          <a
+            href="https://routeopt.dz/confidentialite.html"
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:underline"
+          >
+            politique de confidentialité
+          </a>
+          .
+        </p>
       </form>
       <p className="mt-4 text-sm text-neutral-500">
         Déjà un compte ?{" "}
