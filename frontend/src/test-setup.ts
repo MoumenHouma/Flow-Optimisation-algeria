@@ -1,5 +1,27 @@
 import "@testing-library/jest-dom";
 
+// Node 22+ ships a native experimental `localStorage` global that throws unless
+// started with --localstorage-file; it shadows jsdom's working window.localStorage.
+// Force an in-memory implementation so app code reading `localStorage` under test
+// (api-client authHeader, auth store) works regardless of the Node version.
+{
+  const store = new Map<string, string>();
+  const memoryStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => void store.set(k, String(v)),
+    removeItem: (k: string) => void store.delete(k),
+    clear: () => store.clear(),
+    key: (i: number) => Array.from(store.keys())[i] ?? null,
+    get length() {
+      return store.size;
+    },
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: memoryStorage,
+  });
+}
+
 // jsdom's Blob/File lack .text(); polyfill via FileReader so app code using
 // `file.text()` (ImportPage) works under test without changes.
 if (typeof Blob !== "undefined" && typeof Blob.prototype.text !== "function") {

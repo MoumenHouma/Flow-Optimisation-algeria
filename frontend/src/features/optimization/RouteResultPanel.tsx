@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { FileText, RefreshCw, Sheet } from "lucide-react";
+import { Ban, FileText, RefreshCw, Sheet } from "lucide-react";
 
-import { useOptimizationJob, useReoptimize } from "@/api/optimization";
+import { useOptimizationJob, useReassign, useReoptimize } from "@/api/optimization";
 import { RouteMap } from "@/components/RouteMap";
 import { apiFetch } from "@/lib/api-client";
 import { downloadRouteExport } from "@/lib/downloads";
@@ -98,6 +98,16 @@ function RouteCard({ route, index }: { route: RouteResult; index: number }) {
     setReoptJobId(res.job_id);
   };
 
+  const reassign = useReassign();
+  const onReassign = async () => {
+    // Blocked vehicle (F20): drop it, redistribute its stops across the fleet.
+    if (!window.confirm("Véhicule bloqué ? Ses arrêts seront réaffectés aux autres véhicules.")) {
+      return;
+    }
+    const res = await reassign.mutateAsync({ routeId: route.id });
+    setReoptJobId(res.job_id);
+  };
+
   return (
     <article className="rounded-lg border border-neutral-200 bg-white p-4">
       <header className="flex flex-wrap items-center justify-between gap-2">
@@ -123,6 +133,14 @@ function RouteCard({ route, index }: { route: RouteResult; index: number }) {
               aria-hidden="true"
             />{" "}
             Ré-optimiser
+          </button>
+          <button
+            onClick={onReassign}
+            disabled={reoptimizing || reassign.isPending}
+            title="Véhicule bloqué : réaffecter ses arrêts aux autres véhicules"
+            className="inline-flex items-center gap-1 rounded-lg border border-warning/50 px-2 py-1 text-xs font-medium text-warning hover:bg-warning/10 disabled:opacity-50"
+          >
+            <Ban className="h-3.5 w-3.5" aria-hidden="true" /> Bloqué
           </button>
           <button
             onClick={() => download("pdf")}

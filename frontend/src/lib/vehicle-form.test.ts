@@ -20,6 +20,8 @@ describe("parseVehicleForm", () => {
       license_plate: undefined,
       capacity_weight: 1000,
       capacity_volume: 10,
+      fuel_range_km: null,
+      fuel_type: "essence",
       depot: { lat: 36.7538, lon: 3.0588 },
       depot_address: "Dépôt Alger Centre",
     });

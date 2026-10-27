@@ -40,6 +40,8 @@ class FleetService:
             license_plate=payload.license_plate,
             capacity_weight=payload.capacity_weight,
             capacity_volume=payload.capacity_volume,
+            fuel_range_km=payload.fuel_range_km,
+            fuel_type=payload.fuel_type,
             depot_id=depot_id,
             depot_lat=lat,
             depot_lon=lon,
@@ -59,6 +61,8 @@ class FleetService:
         vehicle.license_plate = payload.license_plate
         vehicle.capacity_weight = payload.capacity_weight
         vehicle.capacity_volume = payload.capacity_volume
+        vehicle.fuel_range_km = payload.fuel_range_km
+        vehicle.fuel_type = payload.fuel_type
         vehicle.depot_id = depot_id
         vehicle.depot_lat = lat
         vehicle.depot_lon = lon

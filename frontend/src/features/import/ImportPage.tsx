@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Upload, Download, FileWarning, CheckCircle2, Loader2 } from "lucide-react";
 
 import { useCreateDeliveries } from "@/api/orders";
+import { ApiError } from "@/lib/api-client";
 import { parseCsv } from "@/lib/csv";
 import { buildTemplateCsv, mapRows, type ImportPreview } from "@/lib/delivery-import";
 
@@ -123,11 +124,24 @@ export function ImportPage() {
         </div>
       )}
 
-      {create.isError && (
-        <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-danger">
-          Échec de l'import. Réessayez.
-        </p>
-      )}
+      {create.isError &&
+        (create.error instanceof ApiError && create.error.status === 409 ? (
+          // F19: the daily delivery quota is reached — nudge to upgrade.
+          <div role="alert" className="mt-4 rounded-lg bg-warning/10 p-3 text-sm">
+            <p className="font-medium text-neutral-800">Quota de livraisons atteint</p>
+            <p className="mt-1 text-neutral-600">
+              Votre formule limite le nombre de livraisons par jour.{" "}
+              <Link to="/billing" className="font-medium text-primary underline">
+                Passez à une formule supérieure
+              </Link>{" "}
+              pour en importer davantage.
+            </p>
+          </div>
+        ) : (
+          <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-danger">
+            Échec de l'import. Réessayez.
+          </p>
+        ))}
 
       {/* Success + geocoding breakdown */}
       {create.isSuccess && create.data && (

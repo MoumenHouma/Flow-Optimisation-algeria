@@ -18,8 +18,8 @@ from typing import Any
 import redis.asyncio as redis
 
 from optimizer.config import get_settings
-from optimizer.distance_matrix import build_matrix_with_fallback, osrm_route_geometry
 from optimizer.costs import ObjectiveWeights
+from optimizer.distance_matrix import build_matrix_with_fallback, osrm_route_geometry
 from optimizer.models import (
     Delivery,
     GeoPoint,
@@ -67,6 +67,7 @@ def _build_problem(payload: dict[str, Any]) -> VRPProblem:
             capacity=v["capacity"],
             depot=GeoPoint(v["depot"]["lat"], v["depot"]["lon"]),
             vehicle_type=v.get("vehicle_type", "car"),
+            range_m=v.get("range_m"),
         )
         for v in payload["vehicles"]
     ]
@@ -181,7 +182,7 @@ async def _publish_result(redis_client: redis.Redis, result: dict[str, Any]) -> 
 
 async def run() -> None:
     redis_client: redis.Redis = redis.from_url(settings.redis_url, decode_responses=True)
-    print(f"[optimizer] listening on {settings.optimize_queue}")  # noqa: T201
+    print(f"[optimizer] listening on {settings.optimize_queue}")
     while True:
         item = await redis_client.blpop([settings.optimize_queue], timeout=5)
         if item is None:
@@ -190,7 +191,7 @@ async def run() -> None:
         message = json.loads(raw)
         result = await process_job(message, redis_client)
         await _publish_result(redis_client, result)
-        print(f"[optimizer] job {result['job_id']} -> {result['status']}")  # noqa: T201
+        print(f"[optimizer] job {result['job_id']} -> {result['status']}")
 
 
 if __name__ == "__main__":

@@ -38,6 +38,7 @@ class Vehicle:
     capacity: float
     depot: GeoPoint
     vehicle_type: str = "car"  # drives fuel/CO2 factors (F14)
+    range_m: float | None = None  # max route distance on a tank (F20); None = unlimited
 
 
 @dataclass

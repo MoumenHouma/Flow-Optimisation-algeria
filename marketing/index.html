@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RouteOpt — Optimisation de tournées de livraison pour l'Algérie</title>
+    <meta
+      name="description"
+      content="Optimiseur de tournées de livraison conçu pour l'Algérie : données routières OSM algériennes, paiement à la livraison, app livreur hors-réseau, tarifs en dinars."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="/"><span class="dot"></span>RouteOpt</a>
+        <nav class="nav">
+          <a href="#fonctions">Fonctions</a>
+          <a href="#tarifs">Tarifs</a>
+          <a href="mailto:contact@routeopt.dz?subject=Demande%20de%20d%C3%A9mo%20RouteOpt">Démo</a>
+          <a href="https://app.routeopt.dz">Connexion</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="wrap">
+        <h1>L'optimisation de tournées, conçue pour l'Algérie</h1>
+        <p class="lead">
+          Importez les livraisons du jour, obtenez en quelques secondes les tournées de chaque
+          véhicule — sur de vraies données routières algériennes, avec le paiement à la livraison
+          et une app livreur qui fonctionne hors réseau. Facturé en dinars.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="mailto:contact@routeopt.dz?subject=Demande%20de%20d%C3%A9mo%20RouteOpt"
+            >Demander une démo</a
+          >
+          <a class="btn btn-ghost" href="#fonctions">Voir les fonctions</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="fonctions">
+      <div class="wrap">
+        <h2>Ce que fait RouteOpt</h2>
+        <p class="sub">
+          Un moteur d'optimisation (Google OR-Tools) et des distances routières réelles
+          (OpenStreetMap Algérie auto-hébergé), pas des approximations à vol d'oiseau.
+        </p>
+        <div class="grid">
+          <div class="card">
+            <div class="ico">🗺️</div>
+            <h3>Optimisation VRP</h3>
+            <p>Capacités, fenêtres horaires, priorités, multi-dépôt et découpage en zones.</p>
+          </div>
+          <div class="card">
+            <div class="ico">💵</div>
+            <h3>Paiement à la livraison</h3>
+            <p>Espèce encaissée saisie par arrêt, rapprochement encaissé / attendu par livreur.</p>
+          </div>
+          <div class="card">
+            <div class="ico">⛽</div>
+            <h3>Contrainte carburant</h3>
+            <p>Autonomie par véhicule ; un véhicule bloqué, ses arrêts redistribués sur la flotte.</p>
+          </div>
+          <div class="card">
+            <div class="ico">📱</div>
+            <h3>App livreur hors réseau</h3>
+            <p>Statuts et preuve de livraison (photo + signature) mis en file, synchronisés au retour du signal.</p>
+          </div>
+          <div class="card">
+            <div class="ico">📍</div>
+            <h3>Suivi en direct</h3>
+            <p>Position du livreur sur la carte + lien de suivi à partager avec le client.</p>
+          </div>
+          <div class="card">
+            <div class="ico">🔌</div>
+            <h3>API &amp; webhooks</h3>
+            <p>API REST publique et webhooks signés pour brancher votre ERP ou gestion commerciale.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block pricing" id="tarifs">
+      <div class="wrap">
+        <h2>Tarifs</h2>
+        <p class="sub">Paiement par CCP, BaridiMob ou espèces, sur facture.</p>
+        <div class="tiers">
+          <div class="tier">
+            <h3>Gratuit</h3>
+            <div class="price">0 DA</div>
+            <ul>
+              <li>1 véhicule</li>
+              <li>10 livraisons/jour</li>
+              <li>Optimisation de base</li>
+            </ul>
+          </div>
+          <div class="tier featured">
+            <h3>Starter</h3>
+            <div class="price">2 500 DA<small> /mois</small></div>
+            <ul>
+              <li>5 véhicules</li>
+              <li>100 livraisons/jour</li>
+              <li>Import CSV, carte</li>
+            </ul>
+          </div>
+          <div class="tier">
+            <h3>Pro</h3>
+            <div class="price">7 500 DA<small> /mois</small></div>
+            <ul>
+              <li>20 véhicules</li>
+              <li>500 livraisons/jour</li>
+              <li>API, analytique</li>
+            </ul>
+          </div>
+          <div class="tier">
+            <h3>Entreprise</h3>
+            <div class="price">Sur devis</div>
+            <ul>
+              <li>Illimité</li>
+              <li>Multi-dépôt, marque blanche</li>
+              <li>Support dédié</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-band">
+      <div class="wrap">
+        <h2>Testez sur vos vraies tournées</h2>
+        <p>Places de pilote gratuit ouvertes. 20 minutes pour vous montrer l'outil sur vos adresses.</p>
+        <a class="btn btn-primary" href="mailto:contact@routeopt.dz?subject=Pilote%20RouteOpt"
+          >Demander un pilote</a
+        >
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <div>
+          <a href="/">RouteOpt</a>
+          <a href="cgu.html">CGU</a>
+          <a href="confidentialite.html">Confidentialité</a>
+          <a href="mentions-legales.html">Mentions légales</a>
+        </div>
+        <div>© 2026 RouteOpt · contact@routeopt.dz</div>
+      </div>
+    </footer>
+  </body>
+</html>

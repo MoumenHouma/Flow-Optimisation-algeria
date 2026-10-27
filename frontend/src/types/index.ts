@@ -45,6 +45,8 @@ export interface BulkCreateResponse {
 
 export type VehicleType = "car" | "van" | "truck" | "motorcycle";
 
+export type FuelType = "essence" | "diesel" | "gpl" | "electric";
+
 export interface Vehicle {
   id: string;
   name: string;
@@ -52,6 +54,8 @@ export interface Vehicle {
   license_plate?: string;
   capacity_weight: number;
   capacity_volume: number;
+  fuel_range_km?: number | null;
+  fuel_type?: FuelType;
   depot_id?: string | null;
   depot: GeoPoint;
   depot_address: string;
@@ -65,6 +69,8 @@ export interface VehicleDraft {
   license_plate?: string;
   capacity_weight: number;
   capacity_volume: number;
+  fuel_range_km?: number | null;
+  fuel_type?: FuelType;
   depot_id?: string;
   depot: GeoPoint;
   depot_address: string;
@@ -102,6 +108,8 @@ export interface DriverStop {
   time_window_start: string | null;
   time_window_end: string | null;
   status: DeliveryStatus;
+  cod_amount: number | null;
+  cod_currency: string;
 }
 
 export interface DriverRoute {
@@ -233,6 +241,95 @@ export interface Performance {
   avg_distance_per_route_m: number;
   failure_reasons: FailureReason[];
   drivers: DriverStat[];
+}
+
+// F17 cash-on-delivery reconciliation.
+export type CodStatus = "pending" | "collected" | "reconciled" | "discrepancy";
+
+export interface CodPayment {
+  id: string;
+  delivery_id: string;
+  order_id: string | null;
+  route_id: string | null;
+  driver_user_id: string | null;
+  amount_expected: number | null;
+  amount_collected: number;
+  currency: string;
+  method: string;
+  status: CodStatus;
+  collected_at: string | null;
+}
+
+export interface CodSummaryRow {
+  driver_user_id: string | null;
+  day: string;
+  count: number;
+  total_expected: number;
+  total_collected: number;
+  discrepancies: number;
+}
+
+export interface CodSummary {
+  rows: CodSummaryRow[];
+  total_expected: number;
+  total_collected: number;
+  discrepancies: number;
+}
+
+// F18 live tracking.
+export interface LivePosition {
+  vehicle_id: string;
+  lat: number;
+  lon: number;
+  ts: number;
+}
+
+export interface Track {
+  order_id: string | null;
+  status: string;
+  vehicle_position: LivePosition | null;
+}
+
+// F20 fuel-shortage management.
+export type FuelStatus = "available" | "shortage" | "closed";
+
+export interface FuelStation {
+  id: string;
+  name: string;
+  location: GeoPoint;
+  fuel_types: string;
+  status: FuelStatus;
+  notes: string | null;
+}
+
+// F19 SaaS billing + quotas.
+export type Plan = "free" | "starter" | "pro" | "enterprise";
+
+export interface Usage {
+  vehicles: number;
+  max_vehicles: number | null;
+  deliveries_today: number;
+  max_deliveries_per_day: number | null;
+  deliveries_this_month: number;
+}
+
+export interface Billing {
+  plan: Plan;
+  price_da: number;
+  status: string;
+  usage: Usage;
+}
+
+export interface Invoice {
+  id: string;
+  period: string;
+  plan: string;
+  amount_da: number;
+  status: string;
+  method: string | null;
+  reference: string | null;
+  issued_at: string;
+  paid_at: string | null;
 }
 
 export interface DashboardSummary {

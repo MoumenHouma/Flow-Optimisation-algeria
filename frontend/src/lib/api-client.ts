@@ -16,7 +16,28 @@ function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+// suppressAuthRedirect: on 401, throw ApiError(401) WITHOUT clearing the token or
+// navigating to /login. The offline-queue replay path needs this so it can catch
+// the 401 and refresh the access token instead of being bounced mid-sync.
+export interface ApiOptions {
+  suppressAuthRedirect?: boolean;
+}
+
+function handle401(opts: ApiOptions): never {
+  if (!opts.suppressAuthRedirect) {
+    localStorage.removeItem("access_token");
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.assign("/login");
+    }
+  }
+  throw new ApiError(401, "Unauthorized");
+}
+
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  opts: ApiOptions = {},
+): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     ...init,
     headers: {
@@ -26,14 +47,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     },
   });
 
-  if (response.status === 401) {
-    // Session expired/invalid — drop it and bounce to login.
-    localStorage.removeItem("access_token");
-    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-      window.location.assign("/login");
-    }
-    throw new ApiError(401, "Unauthorized");
-  }
+  if (response.status === 401) handle401(opts);
 
   if (!response.ok) {
     const detail = await response.text();
@@ -45,20 +59,14 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 }
 
 // Multipart upload — never set Content-Type so the browser adds the boundary.
-export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+export async function apiUpload<T>(path: string, form: FormData, opts: ApiOptions = {}): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: "POST",
     headers: authHeader(),
     body: form,
   });
 
-  if (response.status === 401) {
-    localStorage.removeItem("access_token");
-    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-      window.location.assign("/login");
-    }
-    throw new ApiError(401, "Unauthorized");
-  }
+  if (response.status === 401) handle401(opts);
   if (!response.ok) {
     throw new ApiError(response.status, await response.text());
   }

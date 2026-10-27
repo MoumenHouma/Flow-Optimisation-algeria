@@ -17,4 +17,8 @@ COPY . .
 RUN chown -R appuser:appgroup /app
 USER appuser
 
+# src-layout package lives at /app/src/optimizer — put it on the path (the
+# backend image does the equivalent via uvicorn's --app-dir src).
+ENV PYTHONPATH=/app/src
+
 CMD ["python", "-m", "optimizer.worker"]

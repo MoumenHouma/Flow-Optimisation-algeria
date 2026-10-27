@@ -21,6 +21,11 @@ interface LoginInput {
   password: string;
 }
 
+interface ResetPasswordInput {
+  token: string;
+  password: string;
+}
+
 // Register a company + admin user (docs/ARCHITECTURE.md §2.2 Auth Service).
 export function useRegister() {
   const setTokens = useAuthStore((s) => s.setTokens);
@@ -48,6 +53,30 @@ export function useLogin() {
         body: JSON.stringify(input),
       }),
     onSuccess: (data) => setTokens(data.access_token, data.refresh_token),
+  });
+}
+
+// Ask for a reset link. The API answers 202 whether or not the email exists,
+// so the UI must show the same confirmation either way (no user enumeration).
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (email: string) =>
+      apiFetch<void>("/api/v1/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }),
+  });
+}
+
+// Consume a reset token. Every existing session is revoked server-side, so the
+// user lands back on /login with a fresh password.
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (input: ResetPasswordInput) =>
+      apiFetch<void>("/api/v1/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
   });
 }
 

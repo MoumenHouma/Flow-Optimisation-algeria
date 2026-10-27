@@ -2,6 +2,7 @@ import { BarChart3, CheckCircle, Clock, MapPin, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { useDashboard } from "@/api/dashboard";
+import { OnboardingChecklist } from "@/features/dashboard/OnboardingChecklist";
 import { formatDuration, formatKm } from "@/lib/format";
 import type { DashboardSummary } from "@/types";
 
@@ -43,6 +44,8 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
 
   return (
     <>
+      <OnboardingChecklist data={data} />
+
       <section className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi
           icon={<MapPin className="h-5 w-5" />}

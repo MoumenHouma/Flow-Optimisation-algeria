@@ -8,11 +8,13 @@ lookup leaves the delivery ``pending`` so it can be corrected and retried
 """
 
 import uuid
+from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routeopt.core.exceptions import NotFoundError
+from routeopt.core.exceptions import ConflictError, NotFoundError
+from routeopt.models.company import Company
 from routeopt.models.delivery import Delivery
 from routeopt.modules.orders.geocoding import Geocoder
 from routeopt.modules.orders.schemas import DeliveryIn
@@ -25,6 +27,7 @@ class OrdersService:
         self.geocoder = geocoder or Geocoder(redis_client)
 
     async def bulk_create(self, company_id: str, items: list[DeliveryIn]) -> list[Delivery]:
+        await self._enforce_delivery_quota(company_id, len(items))
         deliveries: list[Delivery] = []
         for item in items:
             lat, lon, geocoding_status = await self._resolve_coords(item)
@@ -44,6 +47,8 @@ class OrdersService:
                 weight=item.weight,
                 volume=item.volume,
                 priority=item.priority,
+                cod_amount=item.cod_amount,
+                cod_currency=item.cod_currency,
             )
             self.session.add(delivery)
             deliveries.append(delivery)
@@ -51,6 +56,35 @@ class OrdersService:
         for delivery in deliveries:
             await self.session.refresh(delivery)
         return deliveries
+
+    async def _enforce_delivery_quota(self, company_id: str, incoming: int) -> None:
+        """Reject an import that would exceed the plan's deliveries/day cap (F19).
+
+        Cap is read from the DB (``companies.max_deliveries_per_day``, NULL =
+        unlimited/Enterprise), not the JWT — a plan upgrade lifts it immediately.
+        Counts deliveries created since UTC midnight today.
+        """
+        company = await self.session.get(Company, uuid.UUID(company_id))
+        if company is None:
+            raise NotFoundError("Company not found")
+        cap = company.max_deliveries_per_day
+        if cap is None:  # unlimited (Enterprise)
+            return
+        start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        today = await self.session.scalar(
+            select(func.count())
+            .select_from(Delivery)
+            .where(
+                Delivery.company_id == uuid.UUID(company_id),
+                Delivery.deleted_at.is_(None),
+                Delivery.created_at >= start,
+            )
+        )
+        if (today or 0) + incoming > cap:
+            raise ConflictError(
+                f"Daily delivery quota reached for plan '{company.plan}' "
+                f"({cap}/day) — upgrade to add more."
+            )
 
     async def regeocode(self, company_id: str, delivery_id: str) -> Delivery:
         """Retry geocoding a delivery (correction flow, DESIGN §3.5)."""

@@ -5,6 +5,7 @@ Persists Company + User (SCHEMA.md §3.1, §3.2) and revocable refresh tokens
 and a fresh pair is issued, so a stolen-then-replayed token is caught.
 """
 
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from routeopt.config import get_settings
 from routeopt.core import audit
+from routeopt.core.email import send_password_reset
 from routeopt.core.exceptions import AuthError, ConflictError
 from routeopt.core.security import (
     create_access_token,
@@ -24,13 +26,16 @@ from routeopt.core.security import (
     verify_password,
 )
 from routeopt.models.company import Company
+from routeopt.models.password_reset import PasswordResetToken
 from routeopt.models.refresh_token import RefreshToken
 from routeopt.models.user import User
 from routeopt.modules.auth.schemas import (
+    ForgotPasswordRequest,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
 )
 
@@ -136,6 +141,81 @@ class AuthService:
         if stored is not None:
             await self._revoke_family(stored.family_id, datetime.now(UTC))
             await self.session.commit()
+
+    async def request_password_reset(
+        self, payload: ForgotPasswordRequest, ip: str | None = None
+    ) -> None:
+        """Issue a single-use reset link and mail it. Always silent on the outcome.
+
+        An unknown or disabled account is a no-op: the endpoint must not reveal
+        whether an email is registered (user enumeration).
+        """
+        user = await self._get_user_by_email(payload.email.lower())
+        if user is None or not user.active:
+            return
+        token = secrets.token_urlsafe(32)
+        self.session.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=hash_token(token),
+                expires_at=datetime.now(UTC)
+                + timedelta(minutes=settings.password_reset_expire_minutes),
+            )
+        )
+        await audit.record(
+            self.session,
+            action="user.password_reset_requested",
+            resource_type="user",
+            company_id=user.company_id,
+            actor_user_id=user.id,
+            resource_id=user.id,
+            ip_address=ip,
+        )
+        await self.session.commit()
+        # After commit: a delivery failure must not roll back a valid token.
+        await send_password_reset(user.email, token)
+
+    async def reset_password(self, payload: ResetPasswordRequest, ip: str | None = None) -> None:
+        """Consume a reset token, set the new password and kill every session."""
+        now = datetime.now(UTC)
+        stored = await self.session.scalar(
+            select(PasswordResetToken).where(
+                PasswordResetToken.token_hash == hash_token(payload.token)
+            )
+        )
+        if stored is None or stored.used_at is not None or stored.expires_at < now:
+            raise AuthError("Invalid or expired reset token")
+        user = await self.session.get(User, stored.user_id)
+        if user is None or not user.active or user.deleted_at is not None:
+            raise AuthError("Invalid or expired reset token")
+
+        user.password_hash = hash_password(payload.password)
+        stored.used_at = now
+        # Any other outstanding link for this user is void once one is used.
+        await self.session.execute(
+            update(PasswordResetToken)
+            .where(
+                PasswordResetToken.user_id == user.id,
+                PasswordResetToken.used_at.is_(None),
+            )
+            .values(used_at=now)
+        )
+        # A password change ends every session, not just the current family.
+        await self.session.execute(
+            update(RefreshToken)
+            .where(RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )
+        await audit.record(
+            self.session,
+            action="user.password_reset",
+            resource_type="user",
+            company_id=user.company_id,
+            actor_user_id=user.id,
+            resource_id=user.id,
+            ip_address=ip,
+        )
+        await self.session.commit()
 
     # ── helpers ──────────────────────────────────────────────────────────
     async def _revoke_family(self, family_id: uuid.UUID, now: datetime) -> None:

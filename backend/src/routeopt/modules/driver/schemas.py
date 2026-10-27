@@ -15,6 +15,9 @@ class DriverStopOut(BaseModel):
     time_window_start: str | None
     time_window_end: str | None
     status: DeliveryStatus
+    # F17: cash the driver must collect at this stop (null = prepaid).
+    cod_amount: float | None
+    cod_currency: str
 
 
 class DriverRouteOut(BaseModel):
@@ -32,6 +35,10 @@ class StatusUpdate(BaseModel):
     reason: str | None = None
     lat: float | None = None
     lon: float | None = None
+    # F17: cash collected at this stop. Only recorded on a `delivered` update for
+    # a delivery that has a cod_amount due. None = driver didn't report a figure.
+    cod_collected: float | None = None
+    cod_method: Literal["cash", "baridimob", "ccp", "none"] = "cash"
 
 
 class ProofOut(BaseModel):

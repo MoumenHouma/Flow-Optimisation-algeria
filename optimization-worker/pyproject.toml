@@ -46,7 +46,16 @@ plugins = ["pydantic.mypy"]
 
 # Third-party libs without type stubs.
 [[tool.mypy.overrides]]
-module = ["ortools.*", "numpy.*", "sklearn.*", "httpx", "redis.*", "fakeredis.*"]
+module = ["ortools.*", "sklearn.*", "httpx", "redis.*", "fakeredis.*"]
+ignore_missing_imports = true
+
+# numpy ships stubs, but recent releases use PEP 695 `type` statements in them,
+# which mypy rejects under python_version 3.11 ("Type statement is only supported
+# in 3.12+"). Skip following into numpy's stubs so the pinned target still checks.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

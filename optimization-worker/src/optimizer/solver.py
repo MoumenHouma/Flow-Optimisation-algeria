@@ -8,16 +8,16 @@ time windows), Capacity (unary demand).
 
 from __future__ import annotations
 
-from ortools.constraint_solver import pywrapcp, routing_enums_pb2
-
 from collections.abc import Callable
+
+from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
 from optimizer.costs import EmissionFactors, arc_cost, co2_g, factors_for, fuel_ml
 from optimizer.distance_matrix import DistanceMatrix
 from optimizer.fallback import greedy_nearest_neighbor
 from optimizer.models import (
-    ORToolsTimeoutError,
     OptimizationError,
+    ORToolsTimeoutError,
     RouteStop,
     VehicleRoute,
     VRPProblem,
@@ -100,6 +100,24 @@ class VRPSolver:
                 True,
                 "Capacity",
             )
+
+        # --- Range dimension (F20 fuel-shortage) ---
+        # Cap each vehicle's total route distance at its fuel range so a tank that
+        # can't cover the tour is never assigned it. Vehicles without a range get a
+        # very high cap (effectively unlimited). Skipped entirely when no vehicle
+        # declares a range, to keep the classic problem untouched.
+        if any(v.range_m is not None for v in problem.vehicles):
+            _UNLIMITED_M = 1_000_000_000
+
+            def range_cb(from_index: int, to_index: int) -> int:
+                f, t = manager.IndexToNode(from_index), manager.IndexToNode(to_index)
+                return int(matrix.distances[f][t])
+
+            range_idx = routing.RegisterTransitCallback(range_cb)
+            caps = [
+                int(v.range_m) if v.range_m is not None else _UNLIMITED_M for v in problem.vehicles
+            ]
+            routing.AddDimensionWithVehicleCapacity(range_idx, 0, caps, True, "Range")
 
         # --- Time dimension with windows ---
         if problem.respect_time_windows:
