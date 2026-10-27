@@ -1,109 +1,128 @@
-# RouteOpt — Optimiseur de Tournées de Livraison (Algérie)
+# RouteOpt
 
-> Plateforme SaaS d'optimisation de tournées de livraison conçue pour le marché algérien.
-> Voir [`docs/`](./docs) pour le PRD, l'architecture, le design system, les règles de dev et le schéma de données.
+**Delivery route optimization SaaS for companies in Algeria: import orders, get optimized routes for every vehicle in seconds, and track deliveries live.**
 
-## Architecture (résumé)
+Python · FastAPI · Google OR-Tools · PostgreSQL + PostGIS · Redis · React + TypeScript · MapLibre · OSRM
 
-Monorepo — **modular monolith** (ADR-004) :
+<!-- Add 2–3 screenshots here: optimized routes on the map, analytics page, driver app.
+     Example: ![Optimized routes](docs/screenshots/routes.png) -->
 
-| Composant | Techno | Rôle |
+---
+
+## The problem
+
+Delivery companies plan routes by hand or by habit. Drivers cross each other's zones, vehicles leave half empty or overloaded, time windows are missed, and fuel costs climb. With cash-on-delivery, every failed or late delivery also means money not collected.
+
+## What RouteOpt does
+
+1. **Import** deliveries from a CSV file; addresses are geocoded automatically.
+2. **Optimize**: the solver assigns deliveries to vehicles and orders the stops, respecting each vehicle's capacity, each customer's time window and each vehicle's fuel range.
+3. **Dispatch**: each driver gets a mobile web app with their route, proof of delivery (photo, signature) and offline support.
+4. **Track and adjust**: live tracking, customer tracking links, re-optimization when the day changes, cash-on-delivery reconciliation.
+5. **Learn**: analytics on performance, and service times predicted from past deliveries.
+
+## The optimization engine
+
+The core is a **Capacitated Vehicle Routing Problem with Time Windows** (CVRPTW), solved with Google OR-Tools in a separate worker process:
+
+| Element | How it is modeled |
+| --- | --- |
+| Objective | Weighted sum of **distance, time, fuel and CO₂**, computed per vehicle type. The company chooses the weights. |
+| Capacity | Capacity dimension per vehicle |
+| Time windows | Time dimension with each delivery's window and a predicted service time |
+| Fuel range | Range dimension capping each vehicle's total route distance |
+| Search | Path-cheapest-arc first solution, improved with **Guided Local Search** under a time limit |
+| Large instances | Split into sub-problems with **K-Means clustering** before solving |
+| Road distances | Self-hosted **OSRM** routing engine on the Algeria road network |
+| Fallbacks | Without OSRM, straight-line (haversine) distances are used. If the solver finds no solution in time, a nearest-neighbor heuristic still returns routes. Both are flagged as suboptimal |
+
+**Service-time prediction:** instead of a fixed 5 minutes per stop, RouteOpt learns typical on-site durations from delivery history, grouped by cohort, with fallbacks to the global median and then to a default. Better service times give more realistic routes.
+
+Solver code: [`optimization-worker/src/optimizer/`](optimization-worker/src/optimizer/).
+
+## Features (F1–F16 delivered)
+
+| # | Feature | # | Feature |
+|---|---|---|---|
+| F1 | Delivery import and geocoding | F9 | Dynamic re-optimization of a route |
+| F2 | Large-instance decomposition (K-Means) | F10 | Public API and HMAC-signed webhooks |
+| F3 | Multi-objective VRP optimization | F11 | Analytics (trends and performance) |
+| F4 | Constraints (capacity, time windows) | F12 | Multiple depots |
+| F5 | Route export (PDF / Excel) | F13 | Predicted service time (ML per cohort) |
+| F6 | Real-time delivery tracking | F14 | Weighted objectives (distance / time / fuel / CO₂) |
+| F7 | Offline greedy fallback (haversine) | F15 | Territories (zones and driver assignment) |
+| F8 | Driver PWA with proof of delivery | F16 | White label (theme per company) |
+
+Also included: cash-on-delivery reconciliation, billing plans, fuel management, password reset, audit log.
+
+## Security and quality
+
+- Multi-tenant isolation, role-based access control, API keys hashed (SHA-256), webhook secrets encrypted (Fernet), rate limiting per plan, immutable audit log (Algerian data protection law 18-07), session revocation through refresh-token families.
+- **Tested:** more than 100 Python tests (backend and solver) and about 70 frontend tests.
+- **CI on every push** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): ruff, black, mypy and pytest for the backend (minimum 70 % coverage) and the solver (minimum 75 %), plus lint, type-check, tests and build for the frontend.
+
+## Architecture
+
+Modular monolith in one repository:
+
+| Component | Tech | Role |
 |---|---|---|
-| [`backend/`](./backend) | Python 3.11 · FastAPI · SQLAlchemy 2 · Alembic | API REST (Auth, Orders, Fleet, Routes) |
-| [`optimization-worker/`](./optimization-worker) | Python 3.11 · OR-Tools · OSRM client | Résolution VRP asynchrone (queue Redis) |
-| [`frontend/`](./frontend) | React 18 · Vite · TS · Tailwind · shadcn/ui · MapLibre | Web app manager + Driver PWA |
-| [`infra/`](./infra) | OSRM · Nginx | Routing engine self-hosted + reverse proxy |
+| [`backend/`](backend) | Python 3.11 · FastAPI · SQLAlchemy 2 · Alembic | REST API (auth, orders, fleet, routes, analytics…) |
+| [`optimization-worker/`](optimization-worker) | Python 3.11 · OR-Tools · OSRM client · scikit-learn | Asynchronous VRP solving from a Redis queue |
+| [`frontend/`](frontend) | React 18 · Vite · TypeScript · Tailwind · shadcn/ui · MapLibre | Manager web app and driver PWA |
+| [`infra/`](infra) | OSRM · Nginx | Self-hosted routing engine and reverse proxy |
 
-Data layer : **PostgreSQL + PostGIS** (source de vérité), **Redis** (cache/queue/session), **MinIO/S3** (fichiers, preuves de livraison).
+Data: **PostgreSQL + PostGIS** (source of truth), **Redis** (cache, queue, sessions), **MinIO / S3** (files, proofs of delivery).
 
-Le schéma complet est normatif dans [`docs/SCHEMA.md`](./docs/SCHEMA.md).
-
-## Démarrage rapide (local)
+## Run it locally
 
 ```bash
 cp .env.example .env
 docker compose up -d postgres redis minio        # data layer
 
-# Préparer OSRM (une fois, ~8-16 GB RAM pour l'Algérie) :
-./infra/osrm/prepare.sh                           # ou: REGION=monaco CONTINENT=europe ./infra/osrm/prepare.sh
-docker compose --profile osrm up -d osrm          # OSRM_FILE dans .env doit matcher la région
+# Prepare OSRM once (~8–16 GB RAM for Algeria):
+./infra/osrm/prepare.sh                           # or: REGION=monaco CONTINENT=europe ./infra/osrm/prepare.sh
+docker compose --profile osrm up -d osrm          # OSRM_FILE in .env must match the region
 
-# Backend + worker + frontend :
+# Backend + worker + frontend:
 docker compose up --build
 ```
 
-> Sans OSRM, l'optimisation fonctionne quand même : le worker retombe sur une
-> approximation à vol d'oiseau (résultat marqué `is_suboptimal`, PRD §4.3).
-> Vérifier la connectivité : `GET /health/ready` (rapporte database / redis / osrm).
+Without OSRM, optimization still works with the straight-line fallback (result flagged `is_suboptimal`). Check connectivity with `GET /health/ready`.
 
-- API : http://localhost:8000 — docs Swagger : http://localhost:8000/docs
-- Frontend : http://localhost:5173
-- OSRM : http://localhost:5000
+- API: http://localhost:8000 (Swagger docs at `/docs`)
+- Frontend: http://localhost:5173
 
-## Développement
+**Demo data** (manager `demo@routeopt.dz` / `demo-pass-123`, a fleet, deliveries in Algiers and one optimized route):
+
+```bash
+cd backend && python scripts/seed_demo.py     # idempotent; never run on real data
+```
+
+### Development and tests
 
 ```bash
 # Backend
-cd backend && pip install -e ".[dev]"
-alembic upgrade head
+cd backend && pip install -e ".[dev]" && alembic upgrade head
 uvicorn routeopt.main:app --reload
+TEST_DATABASE_URL=postgresql+asyncpg://routeopt:routeopt@localhost:5432/routeopt pytest --cov=src
 
 # Optimization worker
 cd optimization-worker && pip install -e ".[dev]"
 python -m optimizer.worker
+pytest
 
 # Frontend
 cd frontend && npm install && npm run dev
+npm run lint && npm run typecheck && npm run test -- --run && npm run build
 ```
 
-### Données de démonstration
+## Documentation
 
-Pour peupler une instance vide (démo, test) avec une société cliquable
-(gérant `demo@routeopt.dz` / `demo-pass-123`, flotte + livraisons Alger, une
-tournée optimisée) :
+Product requirements, architecture, data schema, partner API, webhooks and deployment are in [`docs/`](docs) (French): [PRD](docs/PRD.md) · [Architecture](docs/ARCHITECTURE.md) · [Schema](docs/SCHEMA.md) · [API](docs/API.md) · [Webhooks](docs/WEBHOOKS.md) · [Deployment](docs/DEPLOYMENT.md).
 
-```bash
-cd backend && python scripts/seed_demo.py     # idempotent ; ne pas lancer sur des données réelles
-```
+## Author
 
-Qualité (cf. [`docs/RULES.md`](./docs/RULES.md)) : `ruff`, `mypy`, `black`, `pytest` (Python) · `eslint`, `prettier`, `vitest` (TS). Commits en [Conventional Commits](./docs/RULES.md#12-commit-convention-conventional-commits).
-
-### Tests
-
-```bash
-# Backend (les tests d'intégration DB tournent quand TEST_DATABASE_URL est défini)
-cd backend
-TEST_DATABASE_URL=postgresql+asyncpg://routeopt:routeopt@localhost:5432/routeopt \
-  pytest --cov=src            # ruff check . · black --check . · mypy src
-
-# Optimization worker (OR-Tools requis)
-cd optimization-worker && pytest      # ruff check . · black --check . · mypy src
-
-# Frontend
-cd frontend && npm run lint && npm run typecheck && npm run test -- --run && npm run build
-```
-
-La CI ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)) applique lint + types + tests + seuils de couverture sur chaque composant.
-
-## Statut
-
-Phases 1–3 livrées : **F1–F16** implémentés.
-
-| # | Fonctionnalité | # | Fonctionnalité |
-|---|---|---|---|
-| F1 | Import + géocodage des livraisons | F9 | Ré-optimisation dynamique d'une tournée |
-| F2 | Décomposition des grandes instances (K-Means) | F10 | API publique + webhooks (HMAC) |
-| F3 | Optimisation VRP multi-objectif | F11 | Analytics (tendances + performance) |
-| F4 | Contraintes (capacité, fenêtres horaires) | F12 | Multi-dépôt |
-| F5 | Export tournée (PDF / Excel) | F13 | Temps de service prédit (ML par cohorte) |
-| F6 | Suivi temps réel des livraisons | F14 | Objectifs pondérés (distance / temps / carburant / CO₂) |
-| F7 | Repli glouton hors-ligne (approx. haversine) | F15 | Territoires (zones + affectation livreur) |
-| F8 | PWA livreur + preuve de livraison | F16 | Marque blanche (thème par entreprise) |
-
-Sécurité & conformité : isolation multi-tenant, RBAC (403), clés API hachées SHA-256,
-secrets webhook chiffrés (Fernet), rate limiting par plan, journal d'audit immuable
-(loi 18-07), révocation de session (familles de refresh tokens).
-
-Déploiement : voir [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md). API partenaire :
-[`docs/API.md`](./docs/API.md) · webhooks : [`docs/WEBHOOKS.md`](./docs/WEBHOOKS.md).
-Roadmap : [`docs/PRD.md`](./docs/PRD.md#3-fonctionnalités--mvp--roadmap).
+**Abdelmoumen Houma**: data analyst and developer, Master's in Operations Research.
+I build optimization and analytics into real business software: routing, scheduling, forecasting, dashboards.
+[LinkedIn](https://linkedin.com/in/abdelmoumen-houma-806405399) · [GitHub](https://github.com/moumenhouma) <!-- add your Upwork profile link -->
